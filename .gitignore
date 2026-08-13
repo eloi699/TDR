@@ -1,0 +1,7 @@
+venv/
+dades_eloi/
+numeros_prova/
+operacions/
+*.zip
+__pycache__/
+.DS_Store
