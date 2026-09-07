@@ -16,7 +16,7 @@ from datetime import date, datetime
 import cv2
 import numpy as np
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps
 
 from motor import carregar_model, analitzar_imatge
 
@@ -291,7 +291,7 @@ with tab_tutor:
                 imatge_pujada = fitxer
 
     if imatge_pujada is not None:
-        imatge_pil = Image.open(imatge_pujada).convert("RGB")
+        imatge_pil = ImageOps.exif_transpose(Image.open(imatge_pujada)).convert("RGB")
         imatge_np = np.array(imatge_pil)
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
 
