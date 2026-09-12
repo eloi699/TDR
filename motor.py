@@ -10,13 +10,15 @@ Si vols fer servir el projecte des de la terminal (sense app visual),
 pots seguir fent servir operacions.py tal com el tenies.
 """
 
+import re
+
 import cv2
 import numpy as np
 import tensorflow as tf
 
 # ATENCIÓ: aquest ordre HA DE SER exactament el mateix que CLASSES
 # a entrenament_personalitzat.py. Si canvies l'ordre allà, canvia'l aquí.
-ETIQUETES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', 'x', ':']
+ETIQUETES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', 'x', ':', '=']
 
 MODEL_PATH = 'model_matematic.keras'
 
@@ -26,19 +28,104 @@ def carregar_model():
     return tf.keras.models.load_model(MODEL_PATH)
 
 
+def _formatar_numero(n):
+    """Converteix 5.0 -> 5, però deixa 5.5 tal qual."""
+    if isinstance(n, float) and n.is_integer():
+        return int(n)
+    if isinstance(n, float):
+        return round(n, 2)
+    return n
+
+
+def resoldre_equacio(text_net):
+    """
+    Resol una equació de primer grau amb una incògnita 'x' (per exemple
+    'x+3=8', '5x=20' o '2x+3=11'). Aquí la 'x' NO vol dir multiplicar,
+    sinó que és la incògnita: ho sabem perquè hi ha un signe '=' al text.
+    """
+    parts = text_net.split('=')
+    if len(parts) != 2:
+        return (f"Error: he detectat el signe '=', però l'expressió "
+                f"'{text_net}' no té una equació clara a cada banda.")
+
+    costat_x, costat_num = parts
+
+    # Si la incògnita és al costat dret (per exemple '11=2x+3'), els girem
+    if 'x' not in costat_x and 'x' in costat_num:
+        costat_x, costat_num = costat_num, costat_x
+
+    if 'x' not in costat_x or 'x' in costat_num:
+        return (f"Error: per ara només sé resoldre equacions amb la incògnita "
+                f"'x' a un únic costat (com '2x+3=11'). No he pogut interpretar "
+                f"'{text_net}'.")
+
+    coincidencia = re.fullmatch(r'(\d*)x([+-]\d+)?', costat_x)
+    if not coincidencia:
+        return (f"Error: l'equació '{text_net}' té una forma que encara no sé "
+                f"resoldre (de moment: 'x+3=8', '5x=20' o '2x+3=11').")
+
+    coef_text, const_text = coincidencia.groups()
+    coeficient = int(coef_text) if coef_text else 1
+    constant = int(const_text) if const_text else 0
+
+    try:
+        resultat_dreta = float(costat_num)
+    except ValueError:
+        return f"Error: '{costat_num}' no és un número vàlid a l'altra banda de l'equació."
+
+    if coeficient == 0:
+        return "Error: el coeficient de la x no pot ser 0."
+
+    explicacio = "EXPLICACIÓ PAS A PAS (equació de primer grau):\n\n"
+    explicacio += f"Tenim l'equació: {costat_x} = {_formatar_numero(resultat_dreta)}\n\n"
+
+    pas = 1
+    valor_actual = resultat_dreta
+
+    if constant != 0:
+        signe_original = '+' if constant > 0 else '-'
+        signe_oposat = '-' if constant > 0 else '+'
+        valor_actual = resultat_dreta - constant
+        explicacio += (
+            f"Pas {pas}: Passem el '{signe_original}{abs(constant)}' a l'altra banda "
+            f"canviant-li el signe: {coeficient}x = {_formatar_numero(resultat_dreta)} "
+            f"{signe_oposat} {abs(constant)} = {_formatar_numero(valor_actual)}.\n"
+        )
+        pas += 1
+
+    if coeficient != 1:
+        x_valor = valor_actual / coeficient
+        explicacio += (
+            f"Pas {pas}: Aïllem la x dividint els dos costats pel coeficient "
+            f"{coeficient}: x = {_formatar_numero(valor_actual)} / {coeficient} "
+            f"= {_formatar_numero(x_valor)}.\n"
+        )
+    else:
+        x_valor = valor_actual
+        if pas == 1:
+            explicacio += "Pas 1: La incògnita ja està sola en un costat de l'equació.\n"
+
+    explicacio += f"\nEl valor de la incògnita és: x = {_formatar_numero(x_valor)}"
+    return explicacio
+
+
 def resoldre_i_explicar(text_equacio):
     """
-    Funcio de Tutor: Agafa el text (ex: '5+3', '9-4', '6x2', '12:4'),
-    detecta l'operacio, la calcula i l'explica pas a pas.
-    Retorna sempre un text (mai None).
+    Funció de Tutor: Agafa el text (ex: '5+3', '9-4', '6x2', '12:4', '2x+3=11'),
+    detecta si és una equació (hi ha un '=') o una operació normal, la
+    resol i n'explica el procediment pas a pas. Retorna sempre un text.
     """
     text_net = text_equacio.replace(" ", "")
+
+    # Si hi ha un '=', és una equació: aquí la 'x' vol dir incògnita, no multiplicar.
+    if '=' in text_net:
+        return resoldre_equacio(text_net)
 
     operadors = {
         '+': ('sumar', lambda a, b: a + b, 'suma'),
         '-': ('restar', lambda a, b: a - b, 'resta'),
-        'x': ('multiplicar', lambda a, b: a * b, 'multiplicacio'),
-        ':': ('dividir', lambda a, b: a / b, 'divisio'),
+        'x': ('multiplicar', lambda a, b: a * b, 'multiplicació'),
+        ':': ('dividir', lambda a, b: a / b, 'divisió'),
     }
 
     operador_trobat = None
@@ -48,14 +135,14 @@ def resoldre_i_explicar(text_equacio):
             break
 
     if operador_trobat is None:
-        return f"Nomes he llegit caracters ('{text_equacio}'), pero no he detectat cap operador (+, -, x o :)."
+        return f"Només he llegit caràcters ('{text_equacio}'), però no he detectat cap operador (+, -, x o :)."
 
     verb, funcio, nom_operacio = operadors[operador_trobat]
     parts = text_net.split(operador_trobat)
 
     if len(parts) != 2 or parts[0] == '' or parts[1] == '':
-        return (f"Error: he detectat el signe '{operador_trobat}', pero l'expressio "
-                f"'{text_equacio}' no te dos numeros clars al voltant.")
+        return (f"Error: he detectat el signe '{operador_trobat}', però l'expressió "
+                f"'{text_equacio}' no té dos números clars al voltant.")
 
     try:
         num1 = float(parts[0])
@@ -73,25 +160,29 @@ def resoldre_i_explicar(text_equacio):
         elif isinstance(resultat, float):
             resultat = round(resultat, 2)
 
-        explicacio = "EXPLICACIO PAS A PAS:\n\n"
-        explicacio += f"Pas 1: He llegit el simbol '{operador_trobat}', que significa que hem de {verb}.\n"
-        explicacio += f"Pas 2: Els nombres de l'operacio son el {num1} i el {num2}.\n"
+        explicacio = "EXPLICACIÓ PAS A PAS:\n\n"
+        explicacio += f"Pas 1: He llegit el símbol '{operador_trobat}', que significa que hem de {verb}.\n"
+        explicacio += f"Pas 2: Els nombres de l'operació són el {num1} i el {num2}.\n"
         explicacio += f"Pas 3: Fem la {nom_operacio}: {num1} {operador_trobat} {num2}.\n\n"
-        explicacio += f"El resultat final es: {resultat}"
+        explicacio += f"El resultat final és: {resultat}"
         return explicacio
     except ValueError:
-        return (f"Error: He vist un '{operador_trobat}', pero hi ha un problema llegint "
-                f"els numeros (potser he confos una lletra amb un numero).")
+        return (f"Error: He vist un '{operador_trobat}', però hi ha un problema llegint "
+                f"els números (potser he confós una lletra amb un número).")
 
 
 def _detectar_rectangles(binari):
-    """Troba els rectangles de cada caracter, fusionant els simbols de dos punts (':')."""
+    """Troba els rectangles de cada caràcter, fusionant els símbols de dos traços (':' i '=')."""
     contorns, _ = cv2.findContours(binari, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     candidats = []
     for c in contorns:
         x, y, w, h = cv2.boundingRect(c)
-        if h > 5:
+        area = cv2.contourArea(c)
+        # Abans el MORPH_OPEN eliminava el soroll petit, però també trencava
+        # traços prims com el '+'. Ara filtrem soroll aquí, per àrea, sense
+        # malmetre la forma dels símbols.
+        if h > 5 and area > 8:
             candidats.append([x, y, w, h])
 
     if candidats:
@@ -126,6 +217,75 @@ def _detectar_rectangles(binari):
         if fusionats:
             candidats = [c for idx, c in enumerate(candidats) if idx not in usats] + fusionats
 
+    # --- FUSIÓ DE LES DUES RATLLES (pel símbol '=') ---
+    # El signe d'igual es pot detectar com DUES ratlles amples i primes,
+    # una a sobre de l'altra (semblants al guió de la resta, però en parella).
+    if candidats:
+        alcada_ref2 = max(c[3] for c in candidats)
+
+        def es_ratlla(rect):
+            _, _, w, h = rect
+            aspecte = w / float(h) if h > 0 else 0
+            return aspecte > 2.2 and 5 <= h < alcada_ref2 * 0.4
+
+        usats2 = set()
+        fusionats2 = []
+        for i in range(len(candidats)):
+            if i in usats2 or not es_ratlla(candidats[i]):
+                continue
+            for j in range(i + 1, len(candidats)):
+                if j in usats2 or not es_ratlla(candidats[j]):
+                    continue
+                x1, y1, w1, h1 = candidats[i]
+                x2, y2, w2, h2 = candidats[j]
+                solapament_horitzontal = min(x1 + w1, x2 + w2) - max(x1, x2)
+                amplada_mitjana = (w1 + w2) / 2
+                gap_vertical = max(y1, y2) - min(y1 + h1, y2 + h2)
+                if solapament_horitzontal > amplada_mitjana * 0.5 and 0 <= gap_vertical < alcada_ref2 * 0.6:
+                    x_min, y_min = min(x1, x2), min(y1, y2)
+                    x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                    fusionats2.append([x_min, y_min, x_max - x_min, y_max - y_min])
+                    usats2.add(i)
+                    usats2.add(j)
+                    break
+
+        if fusionats2:
+            candidats = [c for idx, c in enumerate(candidats) if idx not in usats2] + fusionats2
+
+    # --- FUSIÓ DEL '+' TRENCAT EN DOS TROSSOS ---
+    # Si el traç horitzontal i el vertical del '+' han quedat com a
+    # contorns separats (per ombres, gruix irregular del bolígraf, etc.),
+    # els ajuntem quan es toquen o se solapen.
+    if candidats:
+        alcada_ref3 = max(c[3] for c in candidats)
+
+        def es_tros_prim(rect):
+            _, _, w, h = rect
+            return w < alcada_ref3 * 0.6 or h < alcada_ref3 * 0.6
+
+        usats3 = set()
+        fusionats3 = []
+        for i in range(len(candidats)):
+            if i in usats3 or not es_tros_prim(candidats[i]):
+                continue
+            for j in range(i + 1, len(candidats)):
+                if j in usats3 or not es_tros_prim(candidats[j]):
+                    continue
+                x1, y1, w1, h1 = candidats[i]
+                x2, y2, w2, h2 = candidats[j]
+                es_toquen = not (x1 + w1 < x2 - 2 or x2 + w2 < x1 - 2 or
+                                  y1 + h1 < y2 - 2 or y2 + h2 < y1 - 2)
+                if es_toquen:
+                    x_min, y_min = min(x1, x2), min(y1, y2)
+                    x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                    fusionats3.append([x_min, y_min, x_max - x_min, y_max - y_min])
+                    usats3.add(i)
+                    usats3.add(j)
+                    break
+
+        if fusionats3:
+            candidats = [c for idx, c in enumerate(candidats) if idx not in usats3] + fusionats3
+
     rectangles = []
     if candidats:
         alcada_maxima = max(c[3] for c in candidats)
@@ -143,24 +303,28 @@ def analitzar_imatge(img_bgr, model):
     """
     Rep una imatge (array BGR d'OpenCV) i el model ja carregat.
     Retorna:
-        img_anotada     -> copia de la imatge amb els requadres i etiquetes dibuixats (BGR)
+        img_anotada   -> còpia de la imatge amb els requadres i etiquetes dibuixats (BGR)
         equacio_llegida -> text amb el que la IA ha llegit (ex: '12:4')
-        explicacio      -> text amb la resolucio pas a pas
+        explicacio    -> text amb la resolució pas a pas
     """
     img_anotada = img_bgr.copy()
 
+    # --- PREPROCESSAMENT ---
     gris = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     suau = cv2.GaussianBlur(gris, (7, 7), 0)
     _, binari = cv2.threshold(suau, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-    kernel_escombra = np.ones((2, 2), np.uint8)
-    binari = cv2.morphologyEx(binari, cv2.MORPH_OPEN, kernel_escombra)
+    # HEM TRET el MORPH_OPEN que hi havia aquí: trencava els traços prims
+    # com el '+' en dos trossos. El soroll petit ara es filtra dins de
+    # _detectar_rectangles per àrea, sense malmetre els símbols.
 
-    kernel_corro = np.ones((5, 5), np.uint8)
+    kernel_corro = np.ones((3, 3), np.uint8)   # abans (5,5): fonia dígits que estan junts
     binari = cv2.morphologyEx(binari, cv2.MORPH_CLOSE, kernel_corro)
 
+    # --- DETECCIÓ ---
     rectangles = _detectar_rectangles(binari)
 
+    # --- LECTURA IA ---
     equacio_llegida = ""
     for (x, y, w, h) in rectangles:
         roi = binari[y:y + h, x:x + w]
@@ -186,6 +350,6 @@ def analitzar_imatge(img_bgr, model):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
     explicacio = resoldre_i_explicar(equacio_llegida) if equacio_llegida else \
-        "No he detectat cap caracter a la imatge. Prova amb mes llum o mes a prop."
+        "No he detectat cap caràcter a la imatge. Prova amb més llum o més a prop."
 
     return img_anotada, equacio_llegida, explicacio
