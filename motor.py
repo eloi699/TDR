@@ -352,6 +352,7 @@ def analitzar_imatge(img_bgr, model):
         img_anotada   -> còpia de la imatge amb els requadres i etiquetes dibuixats (BGR)
         equacio_llegida -> text amb el que la IA ha llegit (ex: '12:4')
         explicacio    -> text amb la resolució pas a pas
+        binari        -> imatge en blanc i negre feta servir internament (útil per depurar)
     """
     img_anotada = img_bgr.copy()
 
@@ -402,4 +403,4 @@ def analitzar_imatge(img_bgr, model):
     explicacio = resoldre_i_explicar(equacio_llegida) if equacio_llegida else \
         "No he detectat cap caràcter a la imatge. Prova amb més llum o més a prop."
 
-    return img_anotada, equacio_llegida, explicacio
+    return img_anotada, equacio_llegida, explicacio, binari
