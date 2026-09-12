@@ -306,7 +306,43 @@ def _detectar_rectangles(binari):
             if prou_alt or sembla_guio:
                 rectangles.append((x, y, w, h))
 
-    return sorted(rectangles, key=lambda r: r[0])
+    # --- XARXA DE SEGURETAT: DIVIDIR BLOCS MASSA AMPLES ---
+    # Si tot i les correccions anteriors un requadre segueix sent molt més
+    # ample que alt (senyal que en realitat conté diversos caràcters que
+    # es toquen), busquem "valls" (columnes gairebé sense tinta) per
+    # partir-lo en trossos més petits.
+    rectangles_finals = []
+    if rectangles:
+        alcada_ref4 = max(r[3] for r in rectangles)
+        for (x, y, w, h) in rectangles:
+            aspecte = w / float(h) if h > 0 else 0
+            if aspecte > 1.6 and h >= alcada_ref4 * 0.4:
+                roi = binari[y:y + h, x:x + w]
+                densitat = (roi > 0).sum(axis=0)
+                llindar = max(1, int(roi.shape[0] * 0.06))
+                buida = densitat <= llindar
+
+                trossos = []
+                inici = None
+                for i, es_buida in enumerate(buida):
+                    if not es_buida and inici is None:
+                        inici = i
+                    elif es_buida and inici is not None:
+                        trossos.append((inici, i))
+                        inici = None
+                if inici is not None:
+                    trossos.append((inici, len(buida)))
+
+                trossos = [t for t in trossos if (t[1] - t[0]) > 3]
+
+                if len(trossos) > 1:
+                    for (ini, fi) in trossos:
+                        rectangles_finals.append((x + ini, y, fi - ini, h))
+                    continue
+
+            rectangles_finals.append((x, y, w, h))
+
+    return sorted(rectangles_finals, key=lambda r: r[0])
 
 
 def analitzar_imatge(img_bgr, model):
@@ -328,7 +364,11 @@ def analitzar_imatge(img_bgr, model):
     # com el '+' en dos trossos. El soroll petit ara es filtra dins de
     # _detectar_rectangles per àrea, sense malmetre els símbols.
 
-    kernel_corro = np.ones((3, 3), np.uint8)   # abans (5,5): fonia dígits que estan junts
+    # El kernel és 3 files x 1 columna: només tanca petits forats VERTICALS
+    # dins d'un mateix caràcter (per exemple, trossos d'un "4" mal fet).
+    # Com que l'amplada és 1, MAI pot unir dos caràcters que estan un al
+    # costat de l'altre, encara que estiguin molt junts o es toquin.
+    kernel_corro = np.ones((3, 1), np.uint8)
     binari = cv2.morphologyEx(binari, cv2.MORPH_CLOSE, kernel_corro)
 
     # --- DETECCIÓ ---
