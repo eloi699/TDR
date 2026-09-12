@@ -254,30 +254,40 @@ def _detectar_rectangles(binari):
 
     # --- FUSIÓ DEL '+' TRENCAT EN DOS TROSSOS ---
     # Si el traç horitzontal i el vertical del '+' han quedat com a
-    # contorns separats (per ombres, gruix irregular del bolígraf, etc.),
-    # els ajuntem quan es toquen o se solapen.
+    # contorns separats, els ajuntem. Però NOMÉS quan un tros és
+    # clarament horitzontal (ample i prim) i l'altre clarament vertical
+    # (alt i estret) — no qualsevol parell de trossos petits — i quan el
+    # resultat final no sigui més gran que un sol caràcter. Així evitem
+    # que es fusionin dígits sencers entre ells per error.
     if candidats:
         alcada_ref3 = max(c[3] for c in candidats)
 
-        def es_tros_prim(rect):
+        def es_barra_horitzontal(rect):
             _, _, w, h = rect
-            return w < alcada_ref3 * 0.6 or h < alcada_ref3 * 0.6
+            aspecte = w / float(h) if h > 0 else 0
+            return aspecte > 1.3 and h < alcada_ref3 * 0.55
+
+        def es_barra_vertical(rect):
+            _, _, w, h = rect
+            aspecte = w / float(h) if h > 0 else 0
+            return aspecte < 0.75 and w < alcada_ref3 * 0.55
 
         usats3 = set()
         fusionats3 = []
         for i in range(len(candidats)):
-            if i in usats3 or not es_tros_prim(candidats[i]):
+            if i in usats3 or not es_barra_horitzontal(candidats[i]):
                 continue
-            for j in range(i + 1, len(candidats)):
-                if j in usats3 or not es_tros_prim(candidats[j]):
+            for j in range(len(candidats)):
+                if j == i or j in usats3 or not es_barra_vertical(candidats[j]):
                     continue
                 x1, y1, w1, h1 = candidats[i]
                 x2, y2, w2, h2 = candidats[j]
-                es_toquen = not (x1 + w1 < x2 - 2 or x2 + w2 < x1 - 2 or
-                                  y1 + h1 < y2 - 2 or y2 + h2 < y1 - 2)
-                if es_toquen:
-                    x_min, y_min = min(x1, x2), min(y1, y2)
-                    x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                es_toquen = not (x1 + w1 < x2 - 3 or x2 + w2 < x1 - 3 or
+                                  y1 + h1 < y2 - 3 or y2 + h2 < y1 - 3)
+                x_min, y_min = min(x1, x2), min(y1, y2)
+                x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                mida_ok = (x_max - x_min) < alcada_ref3 * 1.2 and (y_max - y_min) < alcada_ref3 * 1.2
+                if es_toquen and mida_ok:
                     fusionats3.append([x_min, y_min, x_max - x_min, y_max - y_min])
                     usats3.add(i)
                     usats3.add(j)
