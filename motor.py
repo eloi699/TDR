@@ -359,7 +359,27 @@ def analitzar_imatge(img_bgr, model):
     # --- PREPROCESSAMENT ---
     gris = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     suau = cv2.GaussianBlur(gris, (7, 7), 0)
-    _, binari = cv2.threshold(suau, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Abans fèiem servir un llindar global (Otsu): agafa tota la foto i
+    # decideix un únic punt de tall entre "clar" i "fosc". El problema és
+    # que si el full té una ombra (més fosc en una zona), aquella ombra
+    # queda per sota del llindar i es confon amb tinta, creant un blob
+    # gegant que s'menja els números reals.
+    #
+    # Ara fem servir un llindar ADAPTATIU: per a cada píxel, es compara
+    # només amb els píxels del seu voltant (un requadre de mida
+    # `mida_bloc`), no amb tota la imatge. Així una ombra suau i
+    # gradual ja no es confon amb tinta, perquè localment el contrast
+    # entre el full i el llapis/bolígraf es manté.
+    mida_bloc = 41  # ha de ser senar; més gran = més tolerant a ombres grans
+    constant_c = 15  # com més gran, més estricte a l'hora de considerar "tinta"
+    binari = cv2.adaptiveThreshold(
+        suau, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        mida_bloc,
+        constant_c,
+    )
 
     # HEM TRET el MORPH_OPEN que hi havia aquí: trencava els traços prims
     # com el '+' en dos trossos. El soroll petit ara es filtra dins de
