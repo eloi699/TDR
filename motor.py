@@ -345,14 +345,20 @@ def _detectar_rectangles(binari):
     return sorted(rectangles_finals, key=lambda r: r[0])
 
 
-def analitzar_imatge(img_bgr, model):
+def _girar_imatge(img, angle_graus):
+    """Gira la imatge 90 graus en un sentit o l'altre. angle_graus=0 la deixa igual."""
+    if angle_graus == 90:
+        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    elif angle_graus == -90:
+        return cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return img
+
+
+def _processar_una_orientacio(img_bgr, model):
     """
-    Rep una imatge (array BGR d'OpenCV) i el model ja carregat.
-    Retorna:
-        img_anotada   -> còpia de la imatge amb els requadres i etiquetes dibuixats (BGR)
-        equacio_llegida -> text amb el que la IA ha llegit (ex: '12:4')
-        explicacio    -> text amb la resolució pas a pas
-        binari        -> imatge en blanc i negre feta servir internament (útil per depurar)
+    Fa tot el procés (binaritzar, detectar caràcters, llegir-los amb la IA)
+    per a UNA orientació concreta de la imatge. Es fa servir per poder
+    comparar diverses orientacions i triar la millor.
     """
     img_anotada = img_bgr.copy()
 
@@ -360,19 +366,11 @@ def analitzar_imatge(img_bgr, model):
     gris = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     suau = cv2.GaussianBlur(gris, (7, 7), 0)
 
-    # Abans fèiem servir un llindar global (Otsu): agafa tota la foto i
-    # decideix un únic punt de tall entre "clar" i "fosc". El problema és
-    # que si el full té una ombra (més fosc en una zona), aquella ombra
-    # queda per sota del llindar i es confon amb tinta, creant un blob
-    # gegant que s'menja els números reals.
-    #
-    # Ara fem servir un llindar ADAPTATIU: per a cada píxel, es compara
-    # només amb els píxels del seu voltant (un requadre de mida
-    # `mida_bloc`), no amb tota la imatge. Així una ombra suau i
-    # gradual ja no es confon amb tinta, perquè localment el contrast
-    # entre el full i el llapis/bolígraf es manté.
-    mida_bloc = 41  # ha de ser senar; més gran = més tolerant a ombres grans
-    constant_c = 15  # com més gran, més estricte a l'hora de considerar "tinta"
+    # Llindar ADAPTATIU: per a cada píxel, es compara només amb els píxels
+    # del seu voltant, no amb tota la imatge. Així una ombra suau al full
+    # no es confon amb tinta (a diferència d'un llindar global com Otsu).
+    mida_bloc = 41
+    constant_c = 15
     binari = cv2.adaptiveThreshold(
         suau, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -381,14 +379,8 @@ def analitzar_imatge(img_bgr, model):
         constant_c,
     )
 
-    # HEM TRET el MORPH_OPEN que hi havia aquí: trencava els traços prims
-    # com el '+' en dos trossos. El soroll petit ara es filtra dins de
-    # _detectar_rectangles per àrea, sense malmetre els símbols.
-
-    # El kernel és 3 files x 1 columna: només tanca petits forats VERTICALS
-    # dins d'un mateix caràcter (per exemple, trossos d'un "4" mal fet).
-    # Com que l'amplada és 1, MAI pot unir dos caràcters que estan un al
-    # costat de l'altre, encara que estiguin molt junts o es toquin.
+    # Kernel de 3x1 (només vertical): tanca petits forats dins d'un mateix
+    # caràcter sense poder mai unir dos caràcters veïns.
     kernel_corro = np.ones((3, 1), np.uint8)
     binari = cv2.morphologyEx(binari, cv2.MORPH_CLOSE, kernel_corro)
 
@@ -397,6 +389,7 @@ def analitzar_imatge(img_bgr, model):
 
     # --- LECTURA IA ---
     equacio_llegida = ""
+    confiances = []
     for (x, y, w, h) in rectangles:
         roi = binari[y:y + h, x:x + w]
         h_roi, w_roi = roi.shape
@@ -412,6 +405,7 @@ def analitzar_imatge(img_bgr, model):
         prediccions = model.predict(ia_input, verbose=0)[0]
         millor_opcio = np.argmax(prediccions)
         confianca = prediccions[millor_opcio] * 100
+        confiances.append(confianca)
 
         caracter_final = ETIQUETES[millor_opcio]
         equacio_llegida += caracter_final
@@ -419,6 +413,47 @@ def analitzar_imatge(img_bgr, model):
         cv2.rectangle(img_anotada, (x, y), (x + w, y + h), (0, 255, 0), 2)
         cv2.putText(img_anotada, f"{caracter_final} ({confianca:.0f}%)", (x, y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+    conf_mitjana = sum(confiances) / len(confiances) if confiances else 0
+
+    # Puntuació per decidir si aquesta orientació és bona: valorem que
+    # aparegui algun operador reconegut i que la confiança mitjana sigui alta.
+    te_operador = any(op in equacio_llegida for op in ('+', '-', 'x', ':', '='))
+    puntuacio = conf_mitjana + (30 if te_operador else 0) + (len(equacio_llegida) * 2)
+
+    return {
+        "img_anotada": img_anotada,
+        "equacio_llegida": equacio_llegida,
+        "binari": binari,
+        "puntuacio": puntuacio,
+    }
+
+
+def analitzar_imatge(img_bgr, model):
+    """
+    Rep una imatge (array BGR d'OpenCV) i el model ja carregat.
+    Prova la imatge en 3 orientacions (normal, girada 90° a la dreta i
+    girada 90° a l'esquerra) i es queda amb la que dona un resultat més
+    fiable, per no dependre de com s'ha sostingut el mòbil en fer la foto.
+
+    Retorna:
+        img_anotada   -> còpia de la imatge (ja orientada correctament) amb
+                         els requadres i etiquetes dibuixats (BGR)
+        equacio_llegida -> text amb el que la IA ha llegit (ex: '12:4')
+        explicacio    -> text amb la resolució pas a pas
+        binari        -> imatge en blanc i negre feta servir internament (útil per depurar)
+    """
+    candidats = []
+    for angle in (0, 90, -90):
+        img_girada = _girar_imatge(img_bgr, angle)
+        resultat = _processar_una_orientacio(img_girada, model)
+        candidats.append(resultat)
+
+    millor = max(candidats, key=lambda r: r["puntuacio"])
+
+    img_anotada = millor["img_anotada"]
+    equacio_llegida = millor["equacio_llegida"]
+    binari = millor["binari"]
 
     explicacio = resoldre_i_explicar(equacio_llegida) if equacio_llegida else \
         "No he detectat cap caràcter a la imatge. Prova amb més llum o més a prop."
