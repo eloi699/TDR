@@ -300,17 +300,27 @@ with tab_tutor:
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
 
         with st.spinner("Analitzant la imatge..."):
-            img_anotada, equacio, explicacio, binari = analitzar_imatge(imatge_bgr, model)
+            img_anotada, equacio, explicacio, binari, info_depuracio = analitzar_imatge(imatge_bgr, model)
 
         img_anotada_rgb = cv2.cvtColor(img_anotada, cv2.COLOR_BGR2RGB)
 
         if mode_depuracio:
-            st.markdown("**Imatge binaritzada (el que veu realment l'algorisme):**")
-            st.image(binari, use_container_width=True)
+            st.markdown("**Comparativa de les 3 orientacions provades:**")
             st.caption(
-                "El blanc es tinta detectada, el negre es fons. Si els numeros "
-                "estan tocant-se o hi ha taques blanques dins del fons, aqui ho veuras."
+                "El blanc es tinta detectada, el negre es fons. L'orientacio "
+                "marcada amb ✅ es la que s'ha fet servir per donar la resposta."
             )
+            cols = st.columns(3)
+            noms_angle = {0: "Normal (0°)", 90: "Girada dreta (90°)", -90: "Girada esquerra (-90°)"}
+            for col, info in zip(cols, info_depuracio):
+                with col:
+                    marca = "✅ " if info["triada"] else ""
+                    st.markdown(f"**{marca}{noms_angle[info['angle']]}**")
+                    st.image(info["binari"], use_container_width=True)
+                    st.caption(
+                        f"Llegit: `{info['equacio_llegida'] or '(res)'}`  \n"
+                        f"Puntuacio: {info['puntuacio']}"
+                    )
 
         st.markdown('<div class="targeta-resultat">', unsafe_allow_html=True)
         st.markdown(f'<span class="etiqueta-operacio">Operacio detectada: {equacio or "(cap)"}</span>',

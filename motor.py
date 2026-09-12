@@ -441,12 +441,16 @@ def analitzar_imatge(img_bgr, model):
                          els requadres i etiquetes dibuixats (BGR)
         equacio_llegida -> text amb el que la IA ha llegit (ex: '12:4')
         explicacio    -> text amb la resolució pas a pas
-        binari        -> imatge en blanc i negre feta servir internament (útil per depurar)
+        binari        -> imatge en blanc i negre de l'orientació triada (útil per depurar)
+        info_depuracio -> llista amb un resum de les 3 orientacions provades
+                           (angle, text llegit, puntuació, binari), útil per
+                           entendre per què s'ha triat una orientació o una altra
     """
     candidats = []
     for angle in (0, 90, -90):
         img_girada = _girar_imatge(img_bgr, angle)
         resultat = _processar_una_orientacio(img_girada, model)
+        resultat["angle"] = angle
         candidats.append(resultat)
 
     millor = max(candidats, key=lambda r: r["puntuacio"])
@@ -455,7 +459,18 @@ def analitzar_imatge(img_bgr, model):
     equacio_llegida = millor["equacio_llegida"]
     binari = millor["binari"]
 
+    info_depuracio = [
+        {
+            "angle": c["angle"],
+            "equacio_llegida": c["equacio_llegida"],
+            "puntuacio": round(c["puntuacio"], 1),
+            "binari": c["binari"],
+            "triada": c is millor,
+        }
+        for c in candidats
+    ]
+
     explicacio = resoldre_i_explicar(equacio_llegida) if equacio_llegida else \
         "No he detectat cap caràcter a la imatge. Prova amb més llum o més a prop."
 
-    return img_anotada, equacio_llegida, explicacio, binari
+    return img_anotada, equacio_llegida, explicacio, binari, info_depuracio
