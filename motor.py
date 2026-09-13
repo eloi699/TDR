@@ -433,10 +433,20 @@ def _processar_una_orientacio(img_bgr, model):
 
     conf_mitjana = sum(confiances) / len(confiances) if confiances else 0
 
-    # Puntuació per decidir si aquesta orientació és bona: valorem que
-    # aparegui algun operador reconegut i que la confiança mitjana sigui alta.
-    te_operador = any(op in equacio_llegida for op in ('+', '-', 'x', ':', '='))
-    puntuacio = conf_mitjana + (30 if te_operador else 0) + (len(equacio_llegida) * 2)
+    # Puntuació per decidir si aquesta orientació és bona. Abans donàvem
+    # un bonus fix si el text CONTENIA algun caràcter d'operador (+, -, x,
+    # :, =), però això es podia enganyar amb soroll: un tros de tinta mal
+    # llegit podia semblar un '-' sense ser-ho de veritat, i guanyava una
+    # orientació incorrecta només per tenir "algun símbol".
+    #
+    # Ara comprovem si l'equació es pot RESOLDRE de veritat (dos números
+    # vàlids amb un operador entre ells). Només si és així donem un bonus
+    # gran. Si no, la puntuació es basa només en la confiança i la
+    # longitud, sense inflar-la per un fals positiu.
+    explicacio_prova = resoldre_i_explicar(equacio_llegida) if equacio_llegida else ""
+    es_equacio_valida = bool(equacio_llegida) and not explicacio_prova.startswith(("Error", "Només"))
+
+    puntuacio = conf_mitjana + (1000 if es_equacio_valida else 0) + (len(equacio_llegida) * 2)
 
     return {
         "img_anotada": img_anotada,
