@@ -295,14 +295,29 @@ with tab_tutor:
                 imatge_pujada = fitxer
 
     if imatge_pujada is not None:
+        if "girar_180" not in st.session_state:
+            st.session_state.girar_180 = False
+
         imatge_pil = ImageOps.exif_transpose(Image.open(imatge_pujada)).convert("RGB")
         imatge_np = np.array(imatge_pil)
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
+
+        if st.session_state.girar_180:
+            imatge_bgr = cv2.rotate(imatge_bgr, cv2.ROTATE_180)
 
         with st.spinner("Analitzant la imatge..."):
             img_anotada, equacio, explicacio, binari, info_depuracio = analitzar_imatge(imatge_bgr, model)
 
         img_anotada_rgb = cv2.cvtColor(img_anotada, cv2.COLOR_BGR2RGB)
+
+        st.write(
+            "El resultat surt de cap per avall o al reves? "
+            "L'aplicacio pot girar automaticament una foto de costat, "
+            "pero no sempre sap distingir 'de cap per avall' de 'be'."
+        )
+        if st.button("🔄 Gira la imatge 180° i torna-ho a provar"):
+            st.session_state.girar_180 = not st.session_state.girar_180
+            st.rerun()
 
         if mode_depuracio:
             st.markdown("**Comparativa de les 3 orientacions provades:**")
