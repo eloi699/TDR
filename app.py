@@ -317,9 +317,11 @@ with tab_tutor:
                     marca = "✅ " if info["triada"] else ""
                     st.markdown(f"**{marca}{noms_angle[info['angle']]}**")
                     st.image(info["binari"], use_container_width=True)
+                    alineat_txt = "↔️ horitzontal" if info["ben_alineat"] else "↕️ vertical"
                     st.caption(
                         f"Llegit: `{info['equacio_llegida'] or '(res)'}`  \n"
-                        f"Puntuacio: {info['puntuacio']}"
+                        f"Puntuacio: {info['puntuacio']}  \n"
+                        f"Alineacio: {alineat_txt}"
                     )
 
         st.markdown('<div class="targeta-resultat">', unsafe_allow_html=True)

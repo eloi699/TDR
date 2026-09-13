@@ -404,6 +404,24 @@ def _processar_una_orientacio(img_bgr, model):
     # --- DETECCIÓ ---
     rectangles = _detectar_rectangles(binari)
 
+    # Comprovació GEOMÈTRICA (abans de llegir res amb la IA): els caràcters
+    # d'una equació normal estan repartits en una línia horitzontal (varien
+    # molt en X, poc en Y). Si en aquesta orientació estan repartits més
+    # aviat en vertical (un sota l'altre), és un senyal molt fiable que la
+    # foto encara està de costat — molt més fiable que mirar si la IA ha
+    # llegit "alguna cosa que sembla una equació", perquè uns dígits girats
+    # poden confondre el model i, per pura casualitat, generar un text que
+    # es pugui resoldre igualment sense tenir cap sentit real.
+    if len(rectangles) >= 2:
+        centres_x = [x + w / 2 for (x, y, w, h) in rectangles]
+        centres_y = [y + h / 2 for (x, y, w, h) in rectangles]
+        dispersio_x = max(centres_x) - min(centres_x)
+        dispersio_y = max(centres_y) - min(centres_y)
+        ben_alineat_horitzontalment = dispersio_x >= dispersio_y
+    else:
+        # Amb 0 o 1 caràcters no podem saber com estan repartits.
+        ben_alineat_horitzontalment = True
+
     # --- LECTURA IA ---
     equacio_llegida = ""
     confiances = []
@@ -433,26 +451,29 @@ def _processar_una_orientacio(img_bgr, model):
 
     conf_mitjana = sum(confiances) / len(confiances) if confiances else 0
 
-    # Puntuació per decidir si aquesta orientació és bona. Abans donàvem
-    # un bonus fix si el text CONTENIA algun caràcter d'operador (+, -, x,
-    # :, =), però això es podia enganyar amb soroll: un tros de tinta mal
-    # llegit podia semblar un '-' sense ser-ho de veritat, i guanyava una
-    # orientació incorrecta només per tenir "algun símbol".
+    # Puntuació per decidir si aquesta orientació és bona:
     #
-    # Ara comprovem si l'equació es pot RESOLDRE de veritat (dos números
-    # vàlids amb un operador entre ells). Només si és així donem un bonus
-    # gran. Si no, la puntuació es basa només en la confiança i la
-    # longitud, sense inflar-la per un fals positiu.
+    # 1r factor (el més important, amb diferència): si els caràcters estan
+    #    repartits en horitzontal, com una línia normal d'escriptura. Això
+    #    es comprova de manera geomètrica, sense dependre de la IA.
+    # 2n factor: si l'equació llegida es pot RESOLDRE de veritat (dos
+    #    números vàlids amb un operador entre ells) — però només fa de
+    #    desempat ENTRE orientacions ja ben alineades, mai pot compensar
+    #    una orientació que geomètricament ja sabem que és incorrecta.
+    # 3r factor: confiança mitjana i longitud del text llegit.
     explicacio_prova = resoldre_i_explicar(equacio_llegida) if equacio_llegida else ""
     es_equacio_valida = bool(equacio_llegida) and not explicacio_prova.startswith(("Error", "Només"))
 
-    puntuacio = conf_mitjana + (1000 if es_equacio_valida else 0) + (len(equacio_llegida) * 2)
+    bonus_alineacio = 2000 if ben_alineat_horitzontalment else 0
+    bonus_validesa = 1000 if es_equacio_valida else 0
+    puntuacio = bonus_alineacio + bonus_validesa + conf_mitjana + (len(equacio_llegida) * 2)
 
     return {
         "img_anotada": img_anotada,
         "equacio_llegida": equacio_llegida,
         "binari": binari,
         "puntuacio": puntuacio,
+        "ben_alineat": ben_alineat_horitzontalment,
     }
 
 
@@ -492,6 +513,7 @@ def analitzar_imatge(img_bgr, model):
             "equacio_llegida": c["equacio_llegida"],
             "puntuacio": round(c["puntuacio"], 1),
             "binari": c["binari"],
+            "ben_alineat": c["ben_alineat"],
             "triada": c is millor,
         }
         for c in candidats
