@@ -1,7 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
 venv/
+
+# Secrets
+.streamlit/secrets.toml
+
+# Fitxers grossos (NO pujar a GitHub)
+gzip/
+dades_sintetiques/
 dades_eloi/
 numeros_prova/
 operacions/
+*.gz
+*.keras
+*.h5
+*.bak
+*.save
 *.zip
-__pycache__/
+
+# Sistema
 .DS_Store

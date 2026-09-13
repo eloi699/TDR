@@ -272,7 +272,7 @@ with tab_tutor:
     model = obtenir_model()
 
     mode_depuracio = st.checkbox(
-        "🔍 Mode depuracio (mostra la imatge en blanc i negre que fa servir l'IA)"
+        "Veure el que veu la IA"
     )
 
     with st.container(border=True):
