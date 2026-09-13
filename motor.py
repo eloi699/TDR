@@ -222,11 +222,17 @@ def _detectar_rectangles(binari):
     # una a sobre de l'altra (semblants al guió de la resta, però en parella).
     if candidats:
         alcada_ref2 = max(c[3] for c in candidats)
+        amplada_imatge2 = binari.shape[1]
 
         def es_ratlla(rect):
             _, _, w, h = rect
             aspecte = w / float(h) if h > 0 else 0
-            return aspecte > 2.2 and 5 <= h < alcada_ref2 * 0.4
+            return (
+                aspecte > 2.2
+                and 5 <= h < alcada_ref2 * 0.4
+                and w < amplada_imatge2 * 0.5
+                and w < alcada_ref2 * 4
+            )
 
         usats2 = set()
         fusionats2 = []
@@ -299,10 +305,21 @@ def _detectar_rectangles(binari):
     rectangles = []
     if candidats:
         alcada_maxima = max(c[3] for c in candidats)
+        amplada_imatge = binari.shape[1]
         for x, y, w, h in candidats:
             aspecte = w / float(h) if h > 0 else 0
             prou_alt = h >= (alcada_maxima * 0.40)
-            sembla_guio = (aspecte > 2.2) and (h >= 5) and (h < alcada_maxima * 0.40)
+            # Un guió de veritat (el signe '-') mai serà tan ample com mig
+            # full de la imatge, ni gaire més ample que l'alçada dels altres
+            # caràcters. Si ho és, és molt més probable que sigui una ratlla
+            # del quadern o un altre artefacte de la foto, no un signe.
+            sembla_guio = (
+                aspecte > 2.2
+                and (h >= 5)
+                and (h < alcada_maxima * 0.40)
+                and (w < amplada_imatge * 0.5)
+                and (w < alcada_maxima * 4)
+            )
             if prou_alt or sembla_guio:
                 rectangles.append((x, y, w, h))
 
