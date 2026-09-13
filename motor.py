@@ -412,14 +412,26 @@ def _processar_una_orientacio(img_bgr, model):
     # llegit "alguna cosa que sembla una equació", perquè uns dígits girats
     # poden confondre el model i, per pura casualitat, generar un text que
     # es pugui resoldre igualment sense tenir cap sentit real.
-    if len(rectangles) >= 2:
-        centres_x = [x + w / 2 for (x, y, w, h) in rectangles]
-        centres_y = [y + h / 2 for (x, y, w, h) in rectangles]
+    #
+    # Per fer aquesta comprovació, ignorem taques petites (per exemple una
+    # gota de tinta accidental) que farien pensar que hi ha "dispersió
+    # vertical" quan en realitat els caràcters de veritat estan ben
+    # alineats. Només comptem els requadres que tenen una mida raonable
+    # comparada amb el més gran.
+    if rectangles:
+        alcada_max_rects = max(h for (_, _, _, h) in rectangles)
+        rects_per_alineacio = [r for r in rectangles if r[3] >= alcada_max_rects * 0.5]
+    else:
+        rects_per_alineacio = []
+
+    if len(rects_per_alineacio) >= 2:
+        centres_x = [x + w / 2 for (x, y, w, h) in rects_per_alineacio]
+        centres_y = [y + h / 2 for (x, y, w, h) in rects_per_alineacio]
         dispersio_x = max(centres_x) - min(centres_x)
         dispersio_y = max(centres_y) - min(centres_y)
         ben_alineat_horitzontalment = dispersio_x >= dispersio_y
     else:
-        # Amb 0 o 1 caràcters no podem saber com estan repartits.
+        # Amb 0 o 1 caràcters "grans" no podem saber com estan repartits.
         ben_alineat_horitzontalment = True
 
     # --- LECTURA IA ---
