@@ -25,7 +25,22 @@ MODEL_PATH = 'model_matematic.keras'
 
 def carregar_model():
     """Carrega el model entrenat des del disc. Es crida un sol cop a l'app."""
-    return tf.keras.models.load_model(MODEL_PATH)
+    try:
+        return tf.keras.models.load_model(MODEL_PATH)
+    except TypeError:
+        # Compatibilitat amb models desats amb versions mes noves de Keras
+        # (els inicialitzadors GlorotUniform antics no accepten
+        # 'input_axes'/'output_axes').
+        class GlorotUniformCompat(tf.keras.initializers.GlorotUniform):
+            def __init__(self, seed=None, **kwargs):
+                kwargs.pop("input_axes", None)
+                kwargs.pop("output_axes", None)
+                super().__init__(seed=seed)
+
+        return tf.keras.models.load_model(
+            MODEL_PATH,
+            custom_objects={"GlorotUniform": GlorotUniformCompat},
+        )
 
 
 def _formatar_numero(n):
@@ -371,21 +386,28 @@ def _girar_imatge(img, angle_graus):
     return img
 
 
+
+def _classificar_roi(roi, model):
+    """Classifica un ROI binaritzat. Retorna (caracter, confianca 0-100)."""
+    h_roi, w_roi = roi.shape
+    if h_roi == 0 or w_roi == 0:
+        return "", 0.0
+    mida_max = max(w_roi, h_roi)
+    pad_y = (mida_max - h_roi) // 2 + 4
+    pad_x = (mida_max - w_roi) // 2 + 4
+    quadrat = cv2.copyMakeBorder(roi, pad_y, pad_y, pad_x, pad_x, cv2.BORDER_CONSTANT, value=0)
+    final_ia = cv2.resize(quadrat, (28, 28))
+    ia_input = final_ia.reshape(1, 28, 28, 1).astype('float32') / 255
+    prediccions = model.predict(ia_input, verbose=0)[0]
+    idx = int(np.argmax(prediccions))
+    return ETIQUETES[idx], prediccions[idx] * 100
+
+
 def _processar_una_orientacio(img_bgr, model):
-    """
-    Fa tot el procés (binaritzar, detectar caràcters, llegir-los amb la IA)
-    per a UNA orientació concreta de la imatge. Es fa servir per poder
-    comparar diverses orientacions i triar la millor.
-    """
     img_anotada = img_bgr.copy()
 
-    # --- PREPROCESSAMENT ---
     gris = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     suau = cv2.GaussianBlur(gris, (7, 7), 0)
-
-    # Llindar ADAPTATIU: per a cada píxel, es compara només amb els píxels
-    # del seu voltant, no amb tota la imatge. Així una ombra suau al full
-    # no es confon amb tinta (a diferència d'un llindar global com Otsu).
     mida_bloc = 41
     constant_c = 15
     binari = cv2.adaptiveThreshold(
@@ -395,29 +417,11 @@ def _processar_una_orientacio(img_bgr, model):
         mida_bloc,
         constant_c,
     )
-
-    # Kernel de 3x1 (només vertical): tanca petits forats dins d'un mateix
-    # caràcter sense poder mai unir dos caràcters veïns.
     kernel_corro = np.ones((3, 1), np.uint8)
     binari = cv2.morphologyEx(binari, cv2.MORPH_CLOSE, kernel_corro)
 
-    # --- DETECCIÓ ---
     rectangles = _detectar_rectangles(binari)
 
-    # Comprovació GEOMÈTRICA (abans de llegir res amb la IA): els caràcters
-    # d'una equació normal estan repartits en una línia horitzontal (varien
-    # molt en X, poc en Y). Si en aquesta orientació estan repartits més
-    # aviat en vertical (un sota l'altre), és un senyal molt fiable que la
-    # foto encara està de costat — molt més fiable que mirar si la IA ha
-    # llegit "alguna cosa que sembla una equació", perquè uns dígits girats
-    # poden confondre el model i, per pura casualitat, generar un text que
-    # es pugui resoldre igualment sense tenir cap sentit real.
-    #
-    # Per fer aquesta comprovació, ignorem taques petites (per exemple una
-    # gota de tinta accidental) que farien pensar que hi ha "dispersió
-    # vertical" quan en realitat els caràcters de veritat estan ben
-    # alineats. Només comptem els requadres que tenen una mida raonable
-    # comparada amb el més gran.
     if rectangles:
         alcada_max_rects = max(h for (_, _, _, h) in rectangles)
         rects_per_alineacio = [r for r in rectangles if r[3] >= alcada_max_rects * 0.5]
@@ -431,48 +435,60 @@ def _processar_una_orientacio(img_bgr, model):
         dispersio_y = max(centres_y) - min(centres_y)
         ben_alineat_horitzontalment = dispersio_x >= dispersio_y
     else:
-        # Amb 0 o 1 caràcters "grans" no podem saber com estan repartits.
         ben_alineat_horitzontalment = True
 
-    # --- LECTURA IA ---
-    equacio_llegida = ""
-    confiances = []
+    # Interpretacio A: multi-caracter
+    equacio_multi = ""
+    conf_multi_list = []
+    boxes_multi = []
     for (x, y, w, h) in rectangles:
         roi = binari[y:y + h, x:x + w]
-        h_roi, w_roi = roi.shape
+        car, conf = _classificar_roi(roi, model)
+        equacio_multi += car
+        conf_multi_list.append(conf)
+        boxes_multi.append((x, y, w, h, car, conf))
+    conf_mitjana_multi = sum(conf_multi_list) / len(conf_multi_list) if conf_multi_list else 0
 
-        mida_max = max(w_roi, h_roi)
-        pad_y = (mida_max - h_roi) // 2 + 4
-        pad_x = (mida_max - w_roi) // 2 + 4
+    # Interpretacio B: un sol caracter (bounding box de TOTS els contorns)
+    contorns, _ = cv2.findContours(binari, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contorns_valids = [c for c in contorns if cv2.contourArea(c) > 5]
+    equacio_single = ""
+    conf_single = 0.0
+    box_single = None
+    if contorns_valids:
+        caixes = [cv2.boundingRect(c) for c in contorns_valids]
+        x_min = min(cx for cx, cy, cw, ch in caixes)
+        y_min = min(cy for cx, cy, cw, ch in caixes)
+        x_max = max(cx + cw for cx, cy, cw, ch in caixes)
+        y_max = max(cy + ch for cx, cy, cw, ch in caixes)
+        roi_single = binari[y_min:y_max, x_min:x_max]
+        if roi_single.size > 0:
+            equacio_single, conf_single = _classificar_roi(roi_single, model)
+            box_single = (x_min, y_min, x_max, y_max, equacio_single, conf_single)
 
-        quadrat = cv2.copyMakeBorder(roi, pad_y, pad_y, pad_x, pad_x, cv2.BORDER_CONSTANT, value=0)
-        final_ia = cv2.resize(quadrat, (28, 28))
-        ia_input = final_ia.reshape(1, 28, 28, 1).astype('float32') / 255
+    # Decisio: si tenim 0-1 rectangles -> single. Si single te molta mes confianca -> single.
+    if len(rectangles) <= 1:
+        usar_single = True
+    elif conf_single > conf_mitjana_multi + 15 and conf_single > 75 and len(equacio_single) == 1:
+        usar_single = True
+    else:
+        usar_single = False
 
-        prediccions = model.predict(ia_input, verbose=0)[0]
-        millor_opcio = np.argmax(prediccions)
-        confianca = prediccions[millor_opcio] * 100
-        confiances.append(confianca)
-
-        caracter_final = ETIQUETES[millor_opcio]
-        equacio_llegida += caracter_final
-
-        cv2.rectangle(img_anotada, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        cv2.putText(img_anotada, f"{caracter_final} ({confianca:.0f}%)", (x, y - 10),
+    if usar_single and box_single is not None:
+        equacio_llegida = equacio_single
+        conf_mitjana = conf_single
+        x1, y1, x2, y2, car, conf = box_single
+        cv2.rectangle(img_anotada, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(img_anotada, f"{car} ({conf:.0f}%)", (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    else:
+        equacio_llegida = equacio_multi
+        conf_mitjana = conf_mitjana_multi
+        for (x, y, w, h, car, conf) in boxes_multi:
+            cv2.rectangle(img_anotada, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(img_anotada, f"{car} ({conf:.0f}%)", (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-    conf_mitjana = sum(confiances) / len(confiances) if confiances else 0
-
-    # Puntuació per decidir si aquesta orientació és bona:
-    #
-    # 1r factor (el més important, amb diferència): si els caràcters estan
-    #    repartits en horitzontal, com una línia normal d'escriptura. Això
-    #    es comprova de manera geomètrica, sense dependre de la IA.
-    # 2n factor: si l'equació llegida es pot RESOLDRE de veritat (dos
-    #    números vàlids amb un operador entre ells) — però només fa de
-    #    desempat ENTRE orientacions ja ben alineades, mai pot compensar
-    #    una orientació que geomètricament ja sabem que és incorrecta.
-    # 3r factor: confiança mitjana i longitud del text llegit.
     explicacio_prova = resoldre_i_explicar(equacio_llegida) if equacio_llegida else ""
     es_equacio_valida = bool(equacio_llegida) and not explicacio_prova.startswith(("Error", "Només"))
 

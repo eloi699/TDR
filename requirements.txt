@@ -1,4 +1,5 @@
 streamlit
+streamlit-cropper
 tensorflow-cpu
 opencv-python-headless
 numpy

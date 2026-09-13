@@ -3,9 +3,6 @@ app.py
 ======
 Aplicacio visual del Tutor Matematic amb IA + Horari d'examens compartit.
 Executa-la en local amb:   streamlit run app.py
-
-L'estil visual (colors, tipografia, targetes arrodonides) esta inspirat
-en la referencia "EduLens AI" que en Eloi va compartir.
 """
 
 import json
@@ -17,11 +14,11 @@ import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image, ImageOps
+from streamlit_cropper import st_cropper
 
 from motor import carregar_model, analitzar_imatge
 
 st.set_page_config(page_title="Tutor Matematic IA", layout="centered")
-
 
 PRIMARY = "#2b8cee"
 BACKGROUND = "#101922"
@@ -299,6 +296,17 @@ with tab_tutor:
             st.session_state.girar_180 = False
 
         imatge_pil = ImageOps.exif_transpose(Image.open(imatge_pujada)).convert("RGB")
+
+        # --- RETALLADOR: l'usuari pot ajustar la zona abans d'analitzar ---
+        st.write("**Ajusta el requadre** perque nomes quedi l'operacio.")
+        imatge_pil = st_cropper(
+            imatge_pil,
+            realtime_update=True,
+            box_color="#2b8cee",
+            aspect_ratio=None,
+            return_type="image",
+        )
+
         imatge_np = np.array(imatge_pil)
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
 
