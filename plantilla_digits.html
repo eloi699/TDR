@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<title>Plantilla digits 0-9 per alumne</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    color: #111;
+    margin: 0;
+    padding: 10mm 8mm 8mm 8mm;
+    background: white;
+  }
+  h1 { font-size: 16px; margin: 0 0 2px 0; }
+  p.instruccions {
+    color: #444;
+    font-size: 10.5px;
+    line-height: 1.35;
+    margin: 0 0 5mm 0;
+    max-width: 240mm;
+  }
+  p.instruccions strong { color: #000; }
+  .marcador {
+    position: absolute;
+    width: 5mm;
+    height: 5mm;
+    background: #000;
+  }
+  .marcador.tl { top: 6mm;  left: 6mm; }
+  .marcador.tr { top: 6mm;  right: 6mm; }
+  .marcador.bl { bottom: 6mm; left: 6mm; }
+  .marcador.br { bottom: 6mm; right: 6mm; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  th, td {
+    border: 1.2px solid #222;
+    text-align: center;
+    vertical-align: middle;
+  }
+  thead th {
+    font-size: 13px;
+    font-weight: 800;
+    height: 7mm;
+    background: #f2f2f2;
+  }
+  th.dig { width: calc((100% - 22mm) / 10); }
+  th.nom-cap {
+    width: 22mm;
+    text-align: left;
+    padding-left: 2mm;
+    font-size: 10px;
+  }
+  td.nom {
+    font-size: 10px;
+    font-weight: 700;
+    text-align: left;
+    padding-left: 2mm;
+    background: #fafafa;
+    width: 22mm;
+  }
+  td.caixa {
+    height: 11mm;
+  }
+  tr:nth-child(even) td.caixa { background: #fdfdfd; }
+  .peu {
+    margin-top: 3mm;
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    color: #333;
+  }
+</style>
+</head>
+<body>
+  <div class="marcador tl"></div>
+  <div class="marcador tr"></div>
+  <div class="marcador bl"></div>
+  <div class="marcador br"></div>
+
+  <h1>Recollida de lletra — digits 0 al 9</h1>
+  <p class="instruccions">
+    <strong>Instruccions:</strong>
+    Escriu cada numero <strong>dins la seva casella</strong>, amb boligraf fosc (negre o blau),
+    fent servir la teva lletra habitual. Ocupa bona part de la casella pero sense tocar les ratlles.
+    <strong>No</strong> escriguis res fora de les caselles.
+    Al final, fes una <strong>foto nitida del full sencer</strong> (bona llum, sense ombres, sense girar)
+    i envia-la al professor. Cada fila es un alumne: escriu el teu nom o el teu numero a la primera columna.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="nom-cap">Alumne</th>
+        <th class="dig">0</th><th class="dig">1</th><th class="dig">2</th><th class="dig">3</th><th class="dig">4</th><th class="dig">5</th><th class="dig">6</th><th class="dig">7</th><th class="dig">8</th><th class="dig">9</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr><td class="nom">1.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">2.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">3.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">4.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">5.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">6.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">7.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">8.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">9.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">10.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">11.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+<tr><td class="nom">12.</td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td><td class="caixa"></td></tr>
+    </tbody>
+  </table>
+
+  <div class="peu">
+    <span>Data: ____ / ____ / ________</span>
+    <span>Classe: _______________</span>
+    <span>Total alumnes: _____</span>
+  </div>
+</body>
+</html>

@@ -328,6 +328,7 @@ def _detectar_rectangles(binari):
             # full de la imatge, ni gaire més ample que l'alçada dels altres
             # caràcters. Si ho és, és molt més probable que sigui una ratlla
             # del quadern o un altre artefacte de la foto, no un signe.
+      
             sembla_guio = (
                 aspecte > 2.2
                 and (h >= 5)
