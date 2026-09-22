@@ -30,7 +30,7 @@ N_EMNIST_PER_CLASSE = 500
 
 FONTS = [
     {
-        'path': os.path.expanduser('~/Desktop/python 3/dades_eloi'),
+        'path': os.path.expanduser('~/Desktop/TDR/python 3/dades_eloi'),
         'mapping': {
             '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9',
             '+':'+','-':'-','x':'x','=':'=',
@@ -38,7 +38,7 @@ FONTS = [
         'repetir_max': 20,
     },
     {
-        'path': os.path.expanduser('~/Desktop/TDR-github/dades_hasy'),
+        'path': os.path.expanduser('~/Desktop/TDR/TDR-github/dades_hasy'),
         'mapping': {
             '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9',
             '+':'+','-':'-','x':'x',
@@ -47,7 +47,7 @@ FONTS = [
         'repetir_max': 1,
     },
     {
-        'path': os.path.expanduser('~/Desktop/TDR-github/dades_sintetiques'),
+        'path': os.path.expanduser('~/Desktop/TDR/TDR-github/dades_sintetiques'),
         'mapping': {'=':'=', 'div':':'},
         'repetir_max': 1,
     },

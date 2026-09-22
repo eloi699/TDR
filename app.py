@@ -433,6 +433,20 @@ with tab_tutor:
             return_type="image",
         )
 
+        # --- NORMALITZAR LA MIDA DE LA IMATGE ---
+        # La càmera del mòbil pot donar imatges molt grans (3000+ px) o molt
+        # petites, i els filtres del motor.py estan calibrats per a una mida
+        # concreta. Redimensionem a una amplada fixa perquè tot funcioni igual.
+        AMPLADA_OBJECTIU = 900
+        if imatge_pil.width > AMPLADA_OBJECTIU:
+            ratio = AMPLADA_OBJECTIU / imatge_pil.width
+            nova_alcada = int(imatge_pil.height * ratio)
+            imatge_pil = imatge_pil.resize((AMPLADA_OBJECTIU, nova_alcada), Image.LANCZOS)
+        elif imatge_pil.width < 500:
+            ratio = 700 / imatge_pil.width
+            nova_alcada = int(imatge_pil.height * ratio)
+            imatge_pil = imatge_pil.resize((700, nova_alcada), Image.LANCZOS)
+
         imatge_np = np.array(imatge_pil)
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
 
