@@ -126,64 +126,82 @@ def resoldre_equacio(text_net):
 
 def resoldre_i_explicar(text_equacio):
     """
-    Funció de Tutor: Agafa el text (ex: '5+3', '9-4', '6x2', '12:4', '2x+3=11'),
-    detecta si és una equació (hi ha un '=') o una operació normal, la
-    resol i n'explica el procediment pas a pas. Retorna sempre un text.
+    Rep un text com '38+756-45612' i retorna una explicacio pas a pas.
+    Suporta operacions encadenades (mes d'un operador), avaluades
+    d'esquerra a dreta.
     """
-    text_net = text_equacio.replace(" ", "")
+    if not text_equacio:
+        return "No he detectat cap caracter a la imatge."
 
-    # Si hi ha un '=', és una equació: aquí la 'x' vol dir incògnita, no multiplicar.
-    if '=' in text_net:
-        return resoldre_equacio(text_net)
+    text_net = text_equacio.replace(" ", "").replace("=", "")
 
-    operadors = {
-        '+': ('sumar', lambda a, b: a + b, 'suma'),
-        '-': ('restar', lambda a, b: a - b, 'resta'),
-        'x': ('multiplicar', lambda a, b: a * b, 'multiplicació'),
-        ':': ('dividir', lambda a, b: a / b, 'divisió'),
+    operadors_func = {
+        '+': lambda a, b: a + b,
+        '-': lambda a, b: a - b,
+        'x': lambda a, b: a * b,
     }
 
-    operador_trobat = None
-    for simbol in operadors:
-        if simbol in text_net:
-            operador_trobat = simbol
-            break
+    tokens = []
+    numero_actual = ''
+    for ch in text_net:
+        if ch.isdigit():
+            numero_actual += ch
+        elif ch in operadors_func or ch == ':':
+            if numero_actual:
+                tokens.append(('num', int(numero_actual)))
+                numero_actual = ''
+            tokens.append(('op', ch))
+    if numero_actual:
+        tokens.append(('num', int(numero_actual)))
 
-    if operador_trobat is None:
-        return f"Només he llegit caràcters ('{text_equacio}'), però no he detectat cap operador (+, -, x o :)."
+    if len(tokens) < 3:
+        return "Nomes he llegit caracters ('" + text_equacio + "'), pero no he detectat cap operacio completa."
 
-    verb, funcio, nom_operacio = operadors[operador_trobat]
-    parts = text_net.split(operador_trobat)
+    if tokens[0][0] != 'num' or tokens[-1][0] != 'num':
+        return "Error: l'expressio '" + text_equacio + "' no comenca o acaba amb un numero."
 
-    if len(parts) != 2 or parts[0] == '' or parts[1] == '':
-        return (f"Error: he detectat el signe '{operador_trobat}', però l'expressió "
-                f"'{text_equacio}' no té dos números clars al voltant.")
+    for i, (tipus, _) in enumerate(tokens):
+        esperat = 'num' if i % 2 == 0 else 'op'
+        if tipus != esperat:
+            return "Error: l'expressio '" + text_equacio + "' no te el format esperat."
 
-    try:
-        num1 = float(parts[0])
-        num2 = float(parts[1])
+    passos = []
+    resultat = tokens[0][1]
+    for i in range(1, len(tokens), 2):
+        op = tokens[i][1]
+        num = tokens[i + 1][1]
+        a = resultat
 
-        if operador_trobat == ':' and num2 == 0:
-            return "Error: no es pot dividir per zero."
+        if op == ':':
+            if num == 0:
+                return "Error: no es pot dividir per zero."
+            resultat_float = a / num
+            resultat = int(resultat_float) if resultat_float.is_integer() else round(resultat_float, 2)
+        else:
+            resultat = operadors_func[op](a, num)
 
-        resultat = funcio(num1, num2)
+        passos.append((op, a, num, resultat))
 
-        if num1.is_integer(): num1 = int(num1)
-        if num2.is_integer(): num2 = int(num2)
-        if isinstance(resultat, float) and resultat.is_integer():
-            resultat = int(resultat)
-        elif isinstance(resultat, float):
-            resultat = round(resultat, 2)
+    verbs = {'+': 'sumar', '-': 'restar', 'x': 'multiplicar', ':': 'dividir'}
+    noms = {'+': 'suma', '-': 'resta', 'x': 'multiplicacio', ':': 'divisio'}
 
-        explicacio = "EXPLICACIÓ PAS A PAS:\n\n"
-        explicacio += f"Pas 1: He llegit el símbol '{operador_trobat}', que significa que hem de {verb}.\n"
-        explicacio += f"Pas 2: Els nombres de l'operació són el {num1} i el {num2}.\n"
-        explicacio += f"Pas 3: Fem la {nom_operacio}: {num1} {operador_trobat} {num2}.\n\n"
-        explicacio += f"El resultat final és: {resultat}"
-        return explicacio
-    except ValueError:
-        return (f"Error: He vist un '{operador_trobat}', però hi ha un problema llegint "
-                f"els números (potser he confós una lletra amb un número).")
+    if len(passos) == 1:
+        op, a, num, r = passos[0]
+        verb = verbs[op]
+        nom_op = noms[op]
+        explicacio = (
+            "Pas 1: He llegit el simbol '" + op + "', que significa que hem de " + verb + ".\n"
+            "Pas 2: Els nombres de l'operacio son el " + str(a) + " i el " + str(num) + ".\n"
+            "Pas 3: Fem la " + nom_op + ": " + str(a) + " " + op + " " + str(num) + ".\n\n"
+            "El resultat final es: " + str(r)
+        )
+    else:
+        explicacio = ""
+        for i, (op, a, num, r) in enumerate(passos, start=1):
+            explicacio += "Pas " + str(i) + ": " + str(a) + " " + op + " " + str(num) + " = " + str(r) + "\n"
+        explicacio += "\nEl resultat final es: " + str(resultat)
+
+    return explicacio
 
 
 def _detectar_rectangles(binari):
@@ -401,6 +419,10 @@ def _classificar_roi(roi, model):
     ia_input = final_ia.reshape(1, 28, 28, 1).astype('float32') / 255
     prediccions = model.predict(ia_input, verbose=0)[0]
     idx = int(np.argmax(prediccions))
+    # Regla: l'usuari mai escriu '=', aixi que si el model diu '=' (idx 14)
+    # casi segur que es un '-' (idx 11) mal classificat.
+    if idx == 14:
+        idx = 11
     return ETIQUETES[idx], prediccions[idx] * 100
 
 
@@ -445,6 +467,14 @@ def _processar_una_orientacio(img_bgr, model):
     for (x, y, w, h) in rectangles:
         roi = binari[y:y + h, x:x + w]
         car, conf = _classificar_roi(roi, model)
+
+        # Regla: l'usuari escriu operacions, no equacions. Si el model diu
+        # '=' es casi segur un signe de resta '-' mal classificat.
+        aspecte_roi = w / float(h) if h > 0 else 0
+        if car == '=' and aspecte_roi > 1.5:
+            car = '-'
+            conf = min(conf, 85)
+
         equacio_multi += car
         conf_multi_list.append(conf)
         boxes_multi.append((x, y, w, h, car, conf))
