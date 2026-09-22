@@ -23,3 +23,11 @@ operacions/
 # Sistema
 .DS_Store
 venv/
+*.backup*
+check_digit_*.png
+verificacio_graella.png
+warped.png
+foto_digits.jpg
+fotos_digits/
+dades_hasy/
+extreure_digits.py
