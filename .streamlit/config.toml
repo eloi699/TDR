@@ -5,3 +5,5 @@ backgroundColor = "#101922"
 secondaryBackgroundColor = "#1c2630"
 textColor = "#ffffff"
 font = "sans serif"
+[server]
+fileWatcherType = "none"
