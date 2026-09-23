@@ -475,12 +475,6 @@ def _processar_una_orientacio(img_bgr, model):
             car = '-'
             conf = min(conf, 85)
 
-        # Regla: el '1' escrit a ma es molt mes estret que el '3'. Si el
-        # model diu '3' pero el rectangle es clarament estret, es un '1'.
-        if car == '3' and aspecte_roi < 0.45:
-            car = '1'
-            conf = min(conf, 80)
-
         equacio_multi += car
         conf_multi_list.append(conf)
         boxes_multi.append((x, y, w, h, car, conf))

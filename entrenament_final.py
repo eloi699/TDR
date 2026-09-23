@@ -44,7 +44,7 @@ FONTS = [
             '+':'+','-':'-','x':'x',
             'div':':',
         },
-        'repetir_max': 1,
+        'repetir_max': 20,
     },
     {
         'path': os.path.expanduser('~/Desktop/TDR/TDR-github/dades_sintetiques'),
