@@ -223,6 +223,111 @@ def examens_de_classe(classe):
 # PANTALLA DE LOGIN I REGISTRE
 # ==============================================================
 
+
+# ==============================================================
+# COOKIES (per recordar la sessió entre visites)
+# ==============================================================
+
+def _generar_token(usuari):
+    """Genera un token estable per identificar l'usuari a la URL."""
+    return hashlib.sha256(f"url_token::{usuari}".encode("utf-8")).hexdigest()[:16]
+
+
+def guardar_sessio_url(usuari):
+    """Guarda l'usuari i un token a la URL per recordar la sessió."""
+    st.query_params["u"] = usuari
+    st.query_params["t"] = _generar_token(usuari)
+
+
+def esborrar_sessio_url():
+    """Esborra els paràmetres de sessió de la URL."""
+    try:
+        del st.query_params["u"]
+        del st.query_params["t"]
+    except KeyError:
+        pass
+
+
+def restaurar_sessio_url():
+    """
+    Comprova si la URL té paràmetres de sessió i inicia sessió automàticament.
+    Retorna True si s'ha pogut restaurar la sessió.
+    """
+    try:
+        usuari = st.query_params.get("u")
+        token = st.query_params.get("t")
+    except Exception:
+        return False
+
+    if not usuari or not token:
+        return False
+
+    # Comprova que el token sigui vàlid
+    if token != _generar_token(usuari):
+        return False
+
+    # Comprova que l'usuari existeixi
+    usuaris = carregar_usuaris()
+    if usuari in usuaris:
+        st.session_state.usuari = {
+            "username": usuari,
+            "classe": usuaris[usuari]["classe"],
+        }
+        return True
+    return False
+
+
+# ==============================================================
+def _cookie_manager():
+    """Retorna el gestor de cookies del navegador."""
+
+
+def guardar_sessio_cookie(usuari):
+    """Guarda l'usuari a una cookie perquè la propera visita recordi la sessió."""
+    try:
+        cm = _cookie_manager()
+        cm.set("tdr_usuari", usuari, expires_at=datetime.now() + timedelta(days=30))
+    except Exception:
+        pass
+
+
+def esborrar_sessio_cookie():
+    """Esborra la cookie de sessió (en tancar sessió)."""
+    try:
+        cm = _cookie_manager()
+        cm.delete("tdr_usuari")
+    except Exception:
+        pass
+
+
+def restaurar_sessio_cookie():
+    """
+    Comprova si hi ha una cookie d'usuari i inicia sessió automàticament.
+    Retorna True si s'ha pogut restaurar la sessió.
+    """
+    try:
+        cm = _cookie_manager()
+        usuari = cm.get("tdr_usuari")
+    except Exception as e:
+        st.session_state.debug_cookie_error = str(e)
+        return False
+
+    st.session_state.debug_cookie_usuari = usuari
+
+    if not usuari:
+        return False
+
+    usuaris = carregar_usuaris()
+    if usuari in usuaris:
+        st.session_state.usuari = {
+            "username": usuari,
+            "classe": usuaris[usuari]["classe"],
+        }
+        return True
+    return False
+
+
+# ==============================================================
 def mostrar_login():
     """Mostra la pantalla inicial on l'usuari inicia sessió o es registra."""
     # Estils propis de la pantalla de login
@@ -295,6 +400,7 @@ def mostrar_login():
                             "username": nom,
                             "classe": usuaris[nom]["classe"],
                         }
+                        guardar_sessio_url(nom)
                         st.rerun()
                     else:
                         st.error(err)
@@ -322,11 +428,20 @@ def mostrar_login():
 def requerir_login():
     """
     Atura l'aplicació si l'usuari no ha iniciat sessió.
-    Si no està autenticat, mostra la pantalla de login.
+    Primer comprova la cookie (per recordar la sessió), i si no n'hi ha,
+    mostra la pantalla de login.
     """
-    if "usuari" not in st.session_state or st.session_state.usuari is None:
-        mostrar_login()
-        st.stop()
+    # Ja està autenticat a la sessió actual
+    if st.session_state.get("usuari"):
+        return
+
+    # Comprova si la URL té paràmetres de sessió
+    if restaurar_sessio_url():
+        return
+
+    # Si no hi ha res, mostra login
+    mostrar_login()
+    st.stop()
 
 
 # ==============================================================
@@ -390,6 +505,7 @@ def mostrar_perfil():
         # --- Tancar sessió ---
         st.markdown("---")
         if st.button("Tancar sessió", use_container_width=True):
+            esborrar_sessio_url()
             st.session_state.usuari = None
             st.rerun()
 
