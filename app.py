@@ -13,6 +13,7 @@ from datetime import date, datetime
 import cv2
 import numpy as np
 import streamlit as st
+import auth
 from PIL import Image, ImageOps
 from streamlit_cropper import st_cropper
 
@@ -59,7 +60,7 @@ def eliminar_examen(id_examen):
     desar_examens(examens)
 
 
-def afegir_examen(assignatura, data_examen, hora, descripcio):
+def afegir_examen(assignatura, data_examen, hora, descripcio, classe):
     examens = carregar_examens()
     examens.append({
         "id": uuid.uuid4().hex,
@@ -67,176 +68,285 @@ def afegir_examen(assignatura, data_examen, hora, descripcio):
         "data": data_examen.isoformat(),
         "hora": hora.strip(),
         "descripcio": descripcio.strip(),
+        "classe": classe,
         "creat": datetime.now().isoformat(),
     })
     desar_examens(examens)
 
 
-st.markdown(f"""
+st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
-    html, body, [class*="css"] {{
-        font-family: 'Lexend', sans-serif;
-    }}
+    * { box-sizing: border-box; }
 
-    .material-symbols-outlined {{
+    html, body, [class*="css"] {
+        font-family: 'Lexend', -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    .material-symbols-outlined {
         font-family: 'Material Symbols Outlined';
         font-weight: normal;
         font-style: normal;
         line-height: 1;
         vertical-align: middle;
-    }}
+    }
 
-    .stApp {{
-        background-color: {BACKGROUND};
-    }}
+    /* Fons amb gradient radial subtil */
+    .stApp {
+        background: radial-gradient(ellipse at top, #18222d 0%, #101922 50%, #0c141b 100%);
+    }
 
-    .capsalera-app {{
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+        max-width: 1100px;
+    }
+
+    /* Capcalera */
+    .capsalera-app {
         display: flex;
         align-items: center;
-        gap: 16px;
-        padding: 8px 0 20px 0;
-    }}
-    .capsalera-icona {{
+        gap: 18px;
+        padding: 12px 0 28px 0;
+    }
+    .capsalera-icona {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 56px;
-        height: 56px;
-        min-width: 56px;
-        border-radius: 16px;
-        background-color: rgba(43, 140, 238, 0.12);
-        font-size: 28px;
-    }}
-    .capsalera-icona .material-symbols-outlined {{
+        width: 60px;
+        height: 60px;
+        min-width: 60px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(43, 140, 238, 0.18) 0%, rgba(43, 140, 238, 0.06) 100%);
+        border: 1px solid rgba(43, 140, 238, 0.25);
+        box-shadow: 0 8px 24px -8px rgba(43, 140, 238, 0.4);
+    }
+    .capsalera-icona .material-symbols-outlined {
         font-size: 30px;
-        color: {PRIMARY};
-    }}
-    .capsalera-text h1 {{
-        font-size: 22px;
+        color: #2b8cee;
+    }
+    .capsalera-text h1 {
+        font-size: 26px;
         font-weight: 700;
-        color: {TEXT};
+        color: #ffffff;
         margin: 0;
         line-height: 1.2;
-    }}
-    .capsalera-text p {{
+        letter-spacing: -0.02em;
+    }
+    .capsalera-text p {
         font-size: 14px;
-        color: {TEXT_MUTED};
-        margin: 2px 0 0 0;
-        font-weight: 500;
-    }}
+        color: #94a3b8;
+        margin: 4px 0 0 0;
+        font-weight: 400;
+    }
 
-    div[data-testid="stVerticalBlockBorderWrapper"] {{
-        background-color: {CARD};
-        border-radius: 24px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 10px 40px -10px rgba(0,0,0,0.4);
-        padding: 4px;
-    }}
+    /* Targetes amb estil glass */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: linear-gradient(135deg, rgba(28, 38, 48, 0.9) 0%, rgba(22, 30, 40, 0.9) 100%);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        padding: 6px;
+    }
 
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 4px;
-        background-color: rgba(255, 255, 255, 0.06);
-        padding: 4px;
+    /* Pestanyes - estil pill */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 6px;
         border-radius: 999px;
-    }}
-    .stTabs [data-baseweb="tab"] {{
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .stTabs [data-baseweb="tab"] {
         border-radius: 999px;
-        padding: 8px 20px;
+        padding: 10px 22px;
         font-weight: 600;
-        color: {TEXT_MUTED};
-    }}
-    .stTabs [aria-selected="true"] {{
-        background-color: {PRIMARY} !important;
-        color: white !important;
-    }}
-    .stTabs [data-baseweb="tab-highlight"] {{
-        display: none !important;
-    }}
-    .stTabs [data-baseweb="tab-border"] {{
-        display: none !important;
-    }}
-    .stApp, .stApp p, .stApp li, .stApp span {{
-        color: {TEXT};
-    }}
+        font-size: 14px;
+        color: #94a3b8;
+        transition: all 0.25s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #2b8cee 0%, #1e6fbf 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 12px -2px rgba(43, 140, 238, 0.5);
+    }
+    .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+    .stTabs [data-baseweb="tab-border"] { display: none !important; }
 
-    .stButton button, .stCameraInput button, .stFileUploader button {{
-        border-radius: 999px !important;
+    /* Text */
+    .stApp, .stApp p, .stApp li, .stApp span, .stApp label {
+        color: #e2e8f0;
+    }
+
+    /* Botons moderns */
+    .stButton button,
+    .stCameraInput button,
+    .stFileUploader button,
+    .stFormSubmitButton button {
+        border-radius: 12px !important;
         font-weight: 600 !important;
+        font-size: 14px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        color: #ffffff !important;
+        transition: all 0.25s ease !important;
+        padding: 10px 20px !important;
+    }
+    .stButton button:hover,
+    .stCameraInput button:hover,
+    .stFileUploader button:hover,
+    .stFormSubmitButton button:hover {
+        transform: translateY(-2px);
+        border-color: rgba(43, 140, 238, 0.5) !important;
+        background: rgba(43, 140, 238, 0.1) !important;
+        box-shadow: 0 8px 20px -8px rgba(43, 140, 238, 0.4);
+    }
+    .stButton button[kind="primary"],
+    .stFormSubmitButton button[kind="primary"] {
+        background: linear-gradient(135deg, #2b8cee 0%, #1e6fbf 100%) !important;
         border: none !important;
-    }}
-    .stButton button[kind="primary"] {{
-        background-color: {PRIMARY} !important;
-        box-shadow: 0 10px 20px -6px rgba(43, 140, 238, 0.4) !important;
-    }}
+        box-shadow: 0 8px 20px -6px rgba(43, 140, 238, 0.5) !important;
+    }
+    .stButton button[kind="primary"]:hover,
+    .stFormSubmitButton button[kind="primary"]:hover {
+        box-shadow: 0 12px 28px -6px rgba(43, 140, 238, 0.7) !important;
+    }
 
-    .targeta-resultat {{
-        background-color: {CARD};
-        border-radius: 24px;
-        box-shadow: 0 10px 40px -10px rgba(0,0,0,0.4);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        padding: 24px;
-        margin-top: 12px;
-    }}
-    .targeta-resultat h3 {{
-        color: {TEXT};
+    /* Inputs */
+    .stTextInput input,
+    .stDateInput input,
+    .stTextArea textarea {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        color: #ffffff !important;
+        padding: 10px 14px !important;
+        transition: all 0.2s ease;
+    }
+    .stTextInput input:focus,
+    .stDateInput input:focus {
+        border-color: #2b8cee !important;
+        box-shadow: 0 0 0 3px rgba(43, 140, 238, 0.15) !important;
+    }
+    .stTextInput label, .stDateInput label {
+        color: #94a3b8 !important;
+        font-weight: 500 !important;
+        font-size: 13px !important;
+    }
+
+    /* Targeta de resultat */
+    .targeta-resultat {
+        background: linear-gradient(135deg, #1c2630 0%, #16202b 100%);
+        border-radius: 20px;
+        border: 1px solid rgba(43, 140, 238, 0.15);
+        box-shadow: 0 12px 40px -12px rgba(43, 140, 238, 0.2), 0 4px 12px rgba(0, 0, 0, 0.3);
+        padding: 28px;
+        margin-top: 16px;
+        animation: fadeInUp 0.5s ease-out;
+    }
+    .targeta-resultat h3 {
+        color: #ffffff;
         font-weight: 700;
         margin-top: 0;
-    }}
-    .etiqueta-operacio {{
+        font-size: 20px;
+        letter-spacing: -0.01em;
+    }
+    .etiqueta-operacio {
         display: inline-block;
-        background-color: rgba(43, 140, 238, 0.12);
-        color: {PRIMARY};
-        font-weight: 700;
-        padding: 4px 14px;
+        background: linear-gradient(135deg, rgba(43, 140, 238, 0.2) 0%, rgba(43, 140, 238, 0.1) 100%);
+        color: #58a9f5;
+        font-weight: 600;
+        padding: 6px 16px;
         border-radius: 999px;
-        font-size: 14px;
-        margin-bottom: 12px;
-    }}
+        font-size: 13px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(43, 140, 238, 0.25);
+    }
 
-    .targeta-examen {{
+    /* Targetes d'examens */
+    .targeta-examen {
         display: flex;
         gap: 16px;
         align-items: flex-start;
-        background-color: {CARD};
-        border-radius: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        padding: 16px 18px;
+        background: linear-gradient(135deg, #1c2630 0%, #16202b 100%);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        padding: 18px 20px;
         margin-bottom: 12px;
-    }}
-    .targeta-examen-data {{
+        transition: all 0.25s ease;
+    }
+    .targeta-examen:hover {
+        border-color: rgba(43, 140, 238, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+    }
+    .targeta-examen-data {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background-color: rgba(43, 140, 238, 0.14);
-        color: {PRIMARY};
+        background: linear-gradient(135deg, rgba(43, 140, 238, 0.2) 0%, rgba(43, 140, 238, 0.08) 100%);
+        color: #58a9f5;
         border-radius: 14px;
-        min-width: 56px;
-        padding: 8px 6px;
+        min-width: 58px;
+        padding: 10px 8px;
         font-weight: 700;
         line-height: 1.1;
-    }}
-    .targeta-examen-data .dia {{
-        font-size: 20px;
-    }}
-    .targeta-examen-data .mes {{
-        font-size: 11px;
-        text-transform: uppercase;
-    }}
-    .targeta-examen-cos h4 {{
-        margin: 0 0 2px 0;
-        color: {TEXT};
+        border: 1px solid rgba(43, 140, 238, 0.2);
+    }
+    .targeta-examen-data .dia { font-size: 22px; letter-spacing: -0.02em; }
+    .targeta-examen-data .mes { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .targeta-examen-cos h4 {
+        margin: 0 0 4px 0;
+        color: #ffffff;
         font-size: 16px;
-        font-weight: 700;
-    }}
-    .targeta-examen-cos p {{
+        font-weight: 600;
+    }
+    .targeta-examen-cos p {
         margin: 0;
-        color: {TEXT_MUTED};
+        color: #94a3b8;
         font-size: 13px;
-    }}
+        line-height: 1.5;
+    }
+
+    /* Animacions */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Alertes */
+    .stAlert {
+        border-radius: 14px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+
+    /* Imatges */
+    .stImage img {
+        border-radius: 12px;
+    }
+
+    /* Separador */
+    hr {
+        border-color: rgba(255, 255, 255, 0.08);
+        margin: 24px 0;
+    }
+
+    /* Checkbox */
+    .stCheckbox label { color: #e2e8f0 !important; font-weight: 500 !important; }
+
+    /* Amagar menu i footer per netedat */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { background: transparent !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -249,130 +359,11 @@ def obtenir_model():
 # ------------------------------------------------------------------
 # PORTADA D'ENTRADA
 # ------------------------------------------------------------------
-if "entrat" not in st.session_state:
-    st.session_state.entrat = False
-
-if not st.session_state.entrat:
-    st.markdown(f"""
-    <style>
-        .portada-hero {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            padding: 60px 20px 20px 20px;
-        }}
-        .portada-icona {{
-            font-size: 72px;
-            line-height: 1;
-            margin-bottom: 20px;
-            filter: drop-shadow(0 8px 24px rgba(43, 140, 238, 0.4));
-        }}
-        .portada-titol {{
-            font-size: 44px;
-            font-weight: 800;
-            color: {TEXT};
-            margin: 0 0 12px 0;
-            line-height: 1.1;
-        }}
-        .portada-titol span {{
-            background: linear-gradient(90deg, #ffffff 0%, {PRIMARY} 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }}
-        .portada-subtitol {{
-            font-size: 17px;
-            color: {TEXT_MUTED};
-            max-width: 540px;
-            margin: 0 auto 40px auto;
-            line-height: 1.5;
-        }}
-        .portada-features {{
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 40px;
-        }}
-        .portada-feature {{
-            background-color: {CARD};
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 18px;
-            padding: 20px;
-            width: 180px;
-            text-align: center;
-        }}
-        .portada-feature .emoji {{
-            font-size: 28px;
-            margin-bottom: 8px;
-        }}
-        .portada-feature h4 {{
-            color: {TEXT};
-            margin: 0 0 4px 0;
-            font-size: 15px;
-            font-weight: 700;
-        }}
-        .portada-feature p {{
-            color: {TEXT_MUTED};
-            margin: 0;
-            font-size: 12px;
-            line-height: 1.4;
-        }}
-        .portada-footer {{
-            text-align: center;
-            color: {TEXT_MUTED};
-            font-size: 12px;
-            padding: 30px 0;
-        }}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="portada-hero">
-        <div class="portada-icona">🧮</div>
-        <h1 class="portada-titol">Tutor <span>Matemàtic IA</span></h1>
-        <p class="portada-subtitol">
-            Fes una foto d'una operació escrita a mà i l'IA t'explicarà
-            pas a pas com resoldre-la. A més, consulta l'horari d'exàmens
-            compartit amb la teva classe.
-        </p>
-        <div class="portada-features">
-            <div class="portada-feature">
-                <div class="emoji">📷</div>
-                <h4>Foto de l'operació</h4>
-                <p>Escriu-la a mà i fes-ne una foto</p>
-            </div>
-            <div class="portada-feature">
-                <div class="emoji">🧠</div>
-                <h4>IA pas a pas</h4>
-                <p>Et mostra el procés per resoldre-la</p>
-            </div>
-            <div class="portada-feature">
-                <div class="emoji">📅</div>
-                <h4>Horari compartit</h4>
-                <p>Afegeix i consulta els exàmens</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col_esq, col_mig, col_dre = st.columns([1, 1, 1])
-    with col_mig:
-        if st.button("Entra a l'aplicació  →", type="primary", use_container_width=True):
-            st.session_state.entrat = True
-            st.rerun()
-
-    st.markdown("""
-    <div class="portada-footer">
-        Fet amb ❤️ · Streamlit + TensorFlow
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.stop()
+auth.requerir_login()
 
 
-tab_tutor, tab_horari = st.tabs(["🧮  Tutor Matematic", "📅  Horari d'examens"])
+
+tab_tutor, tab_horari, tab_perfil = st.tabs(["🧮  Tutor Matematic", "📅  Horari d'examens", "👤  Perfil"])
 
 
 # ------------------------------------------------------------------
@@ -514,6 +505,7 @@ with tab_horari:
 
     with st.container(border=True):
         st.markdown("#### Afegeix un examen")
+        st.caption(f"Aquest examen s'afegirà a la classe: **{st.session_state.usuari['classe']}**")
         with st.form("nou_examen", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
@@ -530,11 +522,13 @@ with tab_horari:
                 if not assignatura.strip():
                     st.error("Cal omplir com a minim l'assignatura.")
                 else:
-                    afegir_examen(assignatura, data_examen, hora, descripcio)
+                    afegir_examen(assignatura, data_examen, hora, descripcio, st.session_state.usuari['classe'])
                     st.success("Examen afegit! Ja el veu tota la classe.")
                     st.rerun()
 
-    examens = carregar_examens()
+    tots_examens = carregar_examens()
+    classe_usuari = st.session_state.usuari["classe"]
+    examens = [e for e in tots_examens if e.get("classe") == classe_usuari]
     for e in examens:
         e["_data_obj"] = date.fromisoformat(e["data"])
     examens.sort(key=lambda e: e["_data_obj"])
@@ -595,3 +589,7 @@ with tab_horari:
                                  use_container_width=True):
                         eliminar_examen(e["id"])
                         st.rerun()
+
+
+with tab_perfil:
+    auth.mostrar_perfil()
