@@ -45,3 +45,11 @@ warped.png
 _arxius_antics/
 __pycache__/
 emnist-digits.zip
+*.backup*
+dades/examens.json
+etiquetador.py
+extreure_hasy.py
+generar_sintetics.py
+patch_motor.py
+plantilla_digits.html
+test_*.py
