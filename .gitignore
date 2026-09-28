@@ -35,3 +35,13 @@ dades/usuaris.json
 dades/
 dades/usuaris.json
 dades/
+_arxius_antics/
+*.backup*
+*.bak
+check_digit_*.png
+deteccions_plantilla.png
+verificacio_graella.png
+warped.png
+_arxius_antics/
+__pycache__/
+emnist-digits.zip
