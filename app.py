@@ -119,26 +119,34 @@ with tab_tutor:
     )
 
     with st.container(border=True):
-        # Al mobil, el navegador ofereix directament:
-        #   - Fer una foto amb la camera nativa
-        #   - Triar una imatge de la galeria
-        #   - Triar un fitxer
-        # Aixo garanteix la maxima qualitat possible.
-        st.markdown(
-            "**Fes una foto o puja una imatge de l'operacio.**\n\n"
-            "Des del mobil, el navegador et donara l'opcio de fer la foto "
-            "amb la camera nativa (qualitat maxima) o triar-la de la galeria."
-        )
-
-        fitxer = st.file_uploader(
-            "Selecciona o fes una foto",
-            type=["jpg", "jpeg", "png", "heic", "heif", "webp"],
-            label_visibility="collapsed",
-        )
+        pestanya_camera, pestanya_pujar = st.tabs(["📷  Fer una foto", "📁  Pujar una imatge"])
 
         imatge_pujada = None
-        if fitxer is not None:
-            imatge_pujada = fitxer
+
+        with pestanya_camera:
+            st.caption(
+                "Fes la foto directament amb la camera. "
+                "Si el reconeixement falla, prova la pestanya **Pujar una imatge**."
+            )
+            captura = st.camera_input(
+                "Fes la foto de l'operacio",
+                label_visibility="collapsed",
+            )
+            if captura is not None:
+                imatge_pujada = captura
+
+        with pestanya_pujar:
+            st.caption(
+                "Toca el boto i tria **Fer una foto** o tria una imatge de la galeria. "
+                "Aquesta opcio dona la **qualitat maxima**."
+            )
+            fitxer = st.file_uploader(
+                "Selecciona o fes una foto",
+                type=["jpg", "jpeg", "png", "heic", "heif", "webp"],
+                label_visibility="collapsed",
+            )
+            if fitxer is not None:
+                imatge_pujada = fitxer
 
     if imatge_pujada is not None:
         if "girar_180" not in st.session_state:
