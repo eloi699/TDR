@@ -24,7 +24,7 @@ from datetime import date, datetime
 import cv2
 import numpy as np
 import streamlit as st
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFilter, ImageEnhance
 from streamlit_cropper import st_cropper
 
 # --- Mòduls propis del projecte ---
@@ -150,19 +150,36 @@ with tab_tutor:
             return_type="image",
         )
 
-        # --- NORMALITZAR LA MIDA DE LA IMATGE ---
-        # La càmera del mòbil pot donar imatges molt grans (3000+ px) o molt
-        # petites, i els filtres del motor.py estan calibrats per a una mida
-        # concreta. Redimensionem a una amplada fixa perquè tot funcioni igual.
-        AMPLADA_OBJECTIU = 900
+        # --- MILLORA DE QUALITAT I NORMALITZACIÓ DE MIDA ---
+        # La càmera del mòbil (st.camera_input) retorna imatges més
+        # comprimides i amb menys detall que les pujades per fitxer.
+        # Per igualar-les, apliquem:
+        #   1. Un filtre de nitidesa (UnsharpMask) per recuperar detall.
+        #   2. Un augment lleuger de contrast.
+        #   3. Un redimensionat a una amplada fixa (1400 px en lloc de 900)
+        #      per no perdre resolució dels caràcters.
+
+        # Apliquem sempre la millora (també ajuda a les fotos pujades)
+        imatge_pil = imatge_pil.filter(
+            ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
+        )
+        imatge_pil = ImageEnhance.Contrast(imatge_pil).enhance(1.15)
+
+        # Redimensionat a una mida més gran per conservar detall
+        AMPLADA_OBJECTIU = 1400
         if imatge_pil.width > AMPLADA_OBJECTIU:
             ratio = AMPLADA_OBJECTIU / imatge_pil.width
             nova_alcada = int(imatge_pil.height * ratio)
             imatge_pil = imatge_pil.resize((AMPLADA_OBJECTIU, nova_alcada), Image.LANCZOS)
         elif imatge_pil.width < 500:
-            ratio = 700 / imatge_pil.width
+            ratio = 900 / imatge_pil.width
             nova_alcada = int(imatge_pil.height * ratio)
-            imatge_pil = imatge_pil.resize((700, nova_alcada), Image.LANCZOS)
+            imatge_pil = imatge_pil.resize((900, nova_alcada), Image.LANCZOS)
+
+        # DEBUG TEMPORAL: mostrar la imatge que rep el motor
+        st.markdown("##### 🔍 DEBUG: imatge que rep el motor")
+        st.caption(f"Mida: {imatge_pil.size[0]} x {imatge_pil.size[1]} px · Mode: {imatge_pil.mode}")
+        st.image(imatge_pil, caption="Aquesta es la imatge exacta que s'analitzara", use_container_width=True)
 
         imatge_np = np.array(imatge_pil)
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
