@@ -367,10 +367,10 @@ def _detectar_rectangles(binari):
         alcada_ref4 = max(r[3] for r in rectangles)
         for (x, y, w, h) in rectangles:
             aspecte = w / float(h) if h > 0 else 0
-            if aspecte > 1.6 and h >= alcada_ref4 * 0.4:
+            if aspecte > 1.4 and h >= alcada_ref4 * 0.4:
                 roi = binari[y:y + h, x:x + w]
                 densitat = (roi > 0).sum(axis=0)
-                llindar = max(1, int(roi.shape[0] * 0.06))
+                llindar = max(1, int(roi.shape[0] * 0.04))
                 buida = densitat <= llindar
 
                 trossos = []
@@ -384,7 +384,7 @@ def _detectar_rectangles(binari):
                 if inici is not None:
                     trossos.append((inici, len(buida)))
 
-                trossos = [t for t in trossos if (t[1] - t[0]) > 3]
+                trossos = [t for t in trossos if (t[1] - t[0]) > 2]
 
                 if len(trossos) > 1:
                     for (ini, fi) in trossos:
