@@ -150,31 +150,29 @@ with tab_tutor:
             return_type="image",
         )
 
-        # --- MILLORA DE QUALITAT I NORMALITZACIÓ DE MIDA ---
-        # La càmera del mòbil (st.camera_input) retorna imatges més
-        # comprimides i amb menys detall que les pujades per fitxer.
-        # Per igualar-les, apliquem:
-        #   1. Un filtre de nitidesa (UnsharpMask) per recuperar detall.
-        #   2. Un augment lleuger de contrast.
-        #   3. Un redimensionat a una amplada fixa (1400 px en lloc de 900)
-        #      per no perdre resolució dels caràcters.
+        # --- PRESERVAR LA QUALITAT ORIGINAL ---
+        # La camera del mobil pot donar imatges de 3000-4000 px d'amplada.
+        # Si les reduim massa, perdem detall i la imatge mostrada queda
+        # borrosa. Ara mantenim una amplada alta (2400 px) i apliquem
+        # nomes una millora MOLT lleugera (nomes per ajudar al motor,
+        # no per canviar l'aspecte visual).
 
-        # Apliquem sempre la millora (també ajuda a les fotos pujades)
+        # Millora lleugera
         imatge_pil = imatge_pil.filter(
-            ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
+            ImageFilter.UnsharpMask(radius=1, percent=50, threshold=3)
         )
-        imatge_pil = ImageEnhance.Contrast(imatge_pil).enhance(1.15)
+        imatge_pil = ImageEnhance.Contrast(imatge_pil).enhance(1.03)
 
-        # Redimensionat a una mida més gran per conservar detall
-        AMPLADA_OBJECTIU = 1400
+        # Redimensionat menys agressiu per preservar el detall
+        AMPLADA_OBJECTIU = 2400
         if imatge_pil.width > AMPLADA_OBJECTIU:
             ratio = AMPLADA_OBJECTIU / imatge_pil.width
             nova_alcada = int(imatge_pil.height * ratio)
             imatge_pil = imatge_pil.resize((AMPLADA_OBJECTIU, nova_alcada), Image.LANCZOS)
-        elif imatge_pil.width < 500:
-            ratio = 900 / imatge_pil.width
+        elif imatge_pil.width < 800:
+            ratio = 1200 / imatge_pil.width
             nova_alcada = int(imatge_pil.height * ratio)
-            imatge_pil = imatge_pil.resize((900, nova_alcada), Image.LANCZOS)
+            imatge_pil = imatge_pil.resize((1200, nova_alcada), Image.LANCZOS)
 
         # DEBUG TEMPORAL: mostrar la imatge que rep el motor
         st.markdown("##### 🔍 DEBUG: imatge que rep el motor")
