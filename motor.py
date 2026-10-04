@@ -204,7 +204,94 @@ def resoldre_i_explicar(text_equacio):
     return explicacio
 
 
-def _detectar_rectangles(binari):
+def _fusionar_amb_model(rectangles, binari, model):
+    """
+    Fusiona parelles de rectangles propers NOMES si el model reconeix
+    millor el resultat fusionat que els dos trossos per separat.
+    Aixo resol el cas del '4' i '9' escrits amb traços separats sense
+    fusionar per error digits diferents que estan a prop.
+    """
+    if len(rectangles) < 2:
+        return rectangles
+
+    def classificar(rect):
+        x, y, w, h = rect
+        roi = binari[y:y + h, x:x + w]
+        if roi.size == 0 or w < 2 or h < 2:
+            return "", 0.0
+        roi_bin = roi.copy()
+        coords = cv2.findNonZero(roi_bin)
+        if coords is None:
+            return "", 0.0
+        rx, ry, rw, rh = cv2.boundingRect(coords)
+        digit = roi_bin[ry:ry + rh, rx:rx + rw]
+        mida = max(rw, rh)
+        py = (mida - rh) // 2 + 4
+        px = (mida - rw) // 2 + 4
+        quadrat = cv2.copyMakeBorder(digit, py, py, px, px, cv2.BORDER_CONSTANT, value=0)
+        final_ia = cv2.resize(quadrat, (28, 28))
+        ia_input = final_ia.reshape(1, 28, 28, 1).astype('float32') / 255
+        pred = model.predict(ia_input, verbose=0)[0]
+        idx = int(np.argmax(pred))
+        if idx == 14:
+            idx = 11
+        return ETIQUETES[idx], pred[idx] * 100
+
+    # Ordenem per X
+    rects_ord = sorted(rectangles, key=lambda r: r[0])
+
+    # Classifiquem tots els rectangles individuals un cop
+    conf_individuals = []
+    car_individuals = []
+    for r in rects_ord:
+        c, conf = classificar(r)
+        car_individuals.append(c)
+        conf_individuals.append(conf)
+
+    # Busquem fusions candidates: nomes parelles adjacents en X
+    resultat = list(rects_ord)
+    i = 0
+    while i < len(resultat) - 1:
+        r1 = resultat[i]
+        r2 = resultat[i + 1]
+        x1, y1, w1, h1 = r1
+        x2, y2, w2, h2 = r2
+
+        # Distancia horitzontal i vertical
+        gap_x = x2 - (x1 + w1)
+        if y1 < y2:
+            gap_y = y2 - (y1 + h1)
+        else:
+            gap_y = y1 - (y2 + h2)
+
+        # Nomes provem fusions si estan a prop
+        if gap_x <= 12 and gap_y <= 12 and gap_x >= -5:
+            # Rect fusionat
+            fx = min(x1, x2)
+            fy = min(y1, y2)
+            fw = max(x1 + w1, x2 + w2) - fx
+            fh = max(y1 + h1, y2 + h2) - fy
+            rect_fusio = (fx, fy, fw, fh)
+
+            car_fusio, conf_fusio = classificar(rect_fusio)
+
+            # Confiança individual mitjana
+            conf_mitjana = (conf_individuals[i] + conf_individuals[i + 1]) / 2
+
+            # Nomes fusionem si:
+            # - El model te confianca alta en el resultat fusionat (> 70%)
+            # - I aquesta confianca supera la mitjana individual per un marge
+            if conf_fusio > 70 and conf_fusio > conf_mitjana + 10:
+                resultat[i] = rect_fusio
+                resultat.pop(i + 1)
+                # No incrementem i perque volem provar la nova parella
+                continue
+        i += 1
+
+    return resultat
+
+
+def _detectar_rectangles(binari, model=None):
     """Troba els rectangles de cada caràcter, fusionant els símbols de dos traços (':' i '=')."""
     contorns, _ = cv2.findContours(binari, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -393,6 +480,10 @@ def _detectar_rectangles(binari):
 
             rectangles_finals.append((x, y, w, h))
 
+    # Fusionar amb el model si esta disponible
+    if model is not None:
+        rectangles_finals = _fusionar_amb_model(rectangles_finals, binari, model)
+
     return sorted(rectangles_finals, key=lambda r: r[0])
 
 
@@ -426,6 +517,73 @@ def _classificar_roi(roi, model):
     return ETIQUETES[idx], prediccions[idx] * 100
 
 
+def _detectar_rectangles_adaptatiu(binari_original, model):
+    """
+    Prova diferents mides de closing horitzontal i queda's amb la versio
+    que dona mes confianca mitjana al model. Aixo resol el cas del '4' i
+    el '9' escrits amb traços separats sense fusionar per error digits
+    diferents que estan a prop.
+    """
+    mides = [0, 3, 5, 8, 12]
+    millor_rects = None
+    millor_score = -999
+    detall = []
+
+    for k in mides:
+        if k == 0:
+            binari_prov = binari_original
+        else:
+            kernel = np.ones((1, k), np.uint8)
+            binari_prov = cv2.morphologyEx(binari_original, cv2.MORPH_CLOSE, kernel)
+
+        rects = _detectar_rectangles(binari_prov)
+        if not rects:
+            detall.append((k, 0, 0))
+            continue
+
+        # Classificar tots els rectangles i calcular la confianca mitjana
+        sum_conf = 0.0
+        n = 0
+        for (x, y, w, h) in rects:
+            roi = binari_prov[y:y + h, x:x + w]
+            if roi.size == 0 or w < 2 or h < 2:
+                continue
+            coords = cv2.findNonZero(roi)
+            if coords is None:
+                continue
+            rx, ry, rw, rh = cv2.boundingRect(coords)
+            digit = roi[ry:ry + rh, rx:rx + rw]
+            mida = max(rw, rh)
+            py = (mida - rh) // 2 + 4
+            px = (mida - rw) // 2 + 4
+            quadrat = cv2.copyMakeBorder(digit, py, py, px, px, cv2.BORDER_CONSTANT, value=0)
+            final_ia = cv2.resize(quadrat, (28, 28))
+            ia_input = final_ia.reshape(1, 28, 28, 1).astype('float32') / 255
+            pred = model.predict(ia_input, verbose=0)[0]
+            idx = int(np.argmax(pred))
+            sum_conf += pred[idx] * 100
+            n += 1
+
+        if n == 0:
+            detall.append((k, 0, 0))
+            continue
+
+        conf_mitja = sum_conf / n
+        # Score: confiança mitjana - penalitzacio per fragments
+        # (aixo afavoreix fusions netes sense fragmentar de mes)
+        score = conf_mitja - n * 1.5
+        detall.append((k, n, round(conf_mitja, 1), round(score, 1)))
+
+        if score > millor_score:
+            millor_score = score
+            millor_rects = rects
+
+    if millor_rects is None:
+        millor_rects = _detectar_rectangles(binari_original)
+
+    return millor_rects
+
+
 def _processar_una_orientacio(img_bgr, model):
     img_anotada = img_bgr.copy()
 
@@ -443,7 +601,7 @@ def _processar_una_orientacio(img_bgr, model):
     kernel_corro = np.ones((3, 1), np.uint8)
     binari = cv2.morphologyEx(binari, cv2.MORPH_CLOSE, kernel_corro)
 
-    rectangles = _detectar_rectangles(binari)
+    rectangles = _detectar_rectangles_adaptatiu(binari, model)
 
     if rectangles:
         alcada_max_rects = max(h for (_, _, _, h) in rectangles)
