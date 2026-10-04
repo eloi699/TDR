@@ -277,7 +277,7 @@ with tab_horari:
                 if not assignatura.strip():
                     st.error("Cal omplir com a minim l'assignatura.")
                 else:
-                    auth.afegir_examen(assignatura, data_examen, hora, descripcio, st.session_state.usuari['classe'])
+                    auth.afegir_examen(assignatura, st.session_state.usuari['classe'], data_examen, hora, descripcio)
                     st.success("Examen afegit! Ja el veu tota la classe.")
                     st.rerun()
 
