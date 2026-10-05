@@ -71,22 +71,24 @@ def obtenir_model():
 
 
 
-
+ 
 # Determinar si l'usuari es admin
 ADMINS = ["eloi"]
 es_admin = st.session_state.usuari.get("username") in ADMINS
 
 if es_admin:
-    tab_tutor, tab_horari, tab_perfil, tab_admin = st.tabs([
+    tab_tutor, tab_horari, tab_ia, tab_perfil, tab_admin = st.tabs([
         "🧮  Tutor Matematic",
         "📅  Horari d'examens",
+        "🤖  Altres IA",
         "👤  Perfil",
         "⚙️  Admin",
     ])
 else:
-    tab_tutor, tab_horari, tab_perfil = st.tabs([
+    tab_tutor, tab_horari, tab_ia, tab_perfil = st.tabs([
         "🧮  Tutor Matematic",
         "📅  Horari d'examens",
+        "🤖  Altres IA",
         "👤  Perfil",
     ])
     tab_admin = None
@@ -119,34 +121,22 @@ with tab_tutor:
     )
 
     with st.container(border=True):
-        pestanya_camera, pestanya_pujar = st.tabs(["📷  Fer una foto", "📁  Pujar una imatge"])
+        st.markdown(
+            "**Puja una imatge de l'operacio.**\n\n"
+            "Toca el boto de sota i tria:\n"
+            "- **Camera** → obre la camera nativa del mobil (qualitat original)\n"
+            "- **Galeria / Fotos** → tria una imatge ja feta"
+        )
+
+        fitxer = st.file_uploader(
+            "Selecciona una imatge",
+            type=["jpg", "jpeg", "png", "heic", "heif", "webp"],
+            label_visibility="collapsed",
+        )
 
         imatge_pujada = None
-
-        with pestanya_camera:
-            st.caption(
-                "Fes la foto directament amb la camera. "
-                "Si el reconeixement falla, prova la pestanya **Pujar una imatge**."
-            )
-            captura = st.camera_input(
-                "Fes la foto de l'operacio",
-                label_visibility="collapsed",
-            )
-            if captura is not None:
-                imatge_pujada = captura
-
-        with pestanya_pujar:
-            st.caption(
-                "Toca el boto i tria **Fer una foto** o tria una imatge de la galeria. "
-                "Aquesta opcio dona la **qualitat maxima**."
-            )
-            fitxer = st.file_uploader(
-                "Selecciona o fes una foto",
-                type=["jpg", "jpeg", "png", "heic", "heif", "webp"],
-                label_visibility="collapsed",
-            )
-            if fitxer is not None:
-                imatge_pujada = fitxer
+        if fitxer is not None:
+            imatge_pujada = fitxer
 
     if imatge_pujada is not None:
         if "girar_180" not in st.session_state:
@@ -344,6 +334,156 @@ with tab_horari:
                                  use_container_width=True):
                         auth.esborrar_examen(e["id"])
                         st.rerun()
+
+
+# ------------------------------------------------------------------
+# PESTANYA: ALTRES IA MATEMATIQUES
+# ------------------------------------------------------------------
+with tab_ia:
+    st.markdown("""
+    <div class="capsalera-app">
+        <div class="capsalera-icona"><span class="material-symbols-outlined">smart_toy</span></div>
+        <div class="capsalera-text">
+            <h1>Altres IA matematiques</h1>
+            <p>Eines especialitzades per resoldre operacions de diferents nivells</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write(
+        "Aquestes eines son IA especialitzades en matematiques. "
+        "Cadascuna funciona millor per a un nivell concret. "
+        "Fes clic al boto per obrir-la en una pestanya nova."
+    )
+
+    st.markdown("""
+    <style>
+        .targeta-ia {
+            background: linear-gradient(135deg, #1c2630 0%, #16202b 100%);
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            height: 100%;
+            transition: all 0.25s ease;
+        }
+        .targeta-ia:hover {
+            border-color: rgba(43, 140, 238, 0.4);
+            transform: translateY(-3px);
+        }
+        .targeta-ia h4 {
+            color: #ffffff;
+            margin: 0 0 8px 0;
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .targeta-ia .nivell {
+            display: inline-block;
+            background: rgba(43, 140, 238, 0.15);
+            color: #58a9f5;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 999px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .targeta-ia p {
+            color: #94a3b8;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0 0 14px 0;
+        }
+        .targeta-ia .emoji-gran {
+            font-size: 30px;
+            margin-bottom: 8px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    ias = [
+        {
+            "emoji": "🟢",
+            "nom": "Photomath",
+            "nivell": "Primaria · ESO · Batxillerat",
+            "descripcio": "Especialitzada a resoldre operacions escrites a ma. Reconeix la foto i mostra els passos. Ideal per a matematiques basiques i mitjanes.",
+            "url": "https://photomath.com",
+        },
+        {
+            "emoji": "🔵",
+            "nom": "Microsoft Math Solver",
+            "nivell": "ESO · Batxillerat",
+            "descripcio": "Gratuita de Microsoft. Resol equacions, derivades, integrals i grafiques. Tambe te app mobil i versio web.",
+            "url": "https://mathsolver.microsoft.com",
+        },
+        {
+            "emoji": "🟠",
+            "nom": "Wolfram Alpha",
+            "nivell": "Batxillerat · Universitat",
+            "descripcio": "El motor matematic mes potent. Resol algebra, calcul, equacions diferencials, estadistica i molt mes. Referencia mundial.",
+            "url": "https://www.wolframalpha.com",
+        },
+        {
+            "emoji": "🟣",
+            "nom": "Symbolab",
+            "nivell": "ESO · Batxillerat · Universitat",
+            "descripcio": "Pas a pas per a algebra, trigonometria, calcul i matrices. Molt util per aprendre el proces, no nomes el resultat.",
+            "url": "https://www.symbolab.com",
+        },
+        {
+            "emoji": "🟡",
+            "nom": "Mathway",
+            "nivell": "ESO · Batxillerat",
+            "descripcio": "Resol problemes de matematiques basics i intermedis. Interficie senzilla i resultats clars. Te versio gratuita i de pagament.",
+            "url": "https://www.mathway.com",
+        },
+        {
+            "emoji": "⚫",
+            "nom": "ChatGPT",
+            "nivell": "Tots els nivells",
+            "descripcio": "Assistent generalista. Pot explicar conceptes matematics i resoldre problemes si li escrius l'enunciat. Molt util per a dubtes teorics.",
+            "url": "https://chat.openai.com",
+        },
+        {
+            "emoji": "🔷",
+            "nom": "Gemini (Google)",
+            "nivell": "Tots els nivells",
+            "descripcio": "IA de Google que pot resoldre matematiques a partir de text o imatge. Bona integracio amb altres eines de Google.",
+            "url": "https://gemini.google.com",
+        },
+        {
+            "emoji": "🟤",
+            "nom": "Claude (Anthropic)",
+            "nivell": "Tots els nivells",
+            "descripcio": "IA conversacional amb bona capacitat de raonament. Explica els passos amb detall i es pot pujar una imatge del problema.",
+            "url": "https://claude.ai",
+        },
+        {
+            "emoji": "🔴",
+            "nom": "Desmos",
+            "nivell": "ESO · Batxillerat",
+            "descripcio": "Calculadora grafica online. No es una IA de resoldre, pero es perfecta per visualitzar funcions i comprovar grafiques.",
+            "url": "https://www.desmos.com/calculator",
+        },
+    ]
+
+    cols = st.columns(3)
+    for idx, ia in enumerate(ias):
+        with cols[idx % 3]:
+            st.markdown(f"""
+            <div class="targeta-ia">
+                <div class="emoji-gran">{ia['emoji']}</div>
+                <h4>{ia['nom']}</h4>
+                <div class="nivell">{ia['nivell']}</div>
+                <p>{ia['descripcio']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.link_button(
+                "Obrir " + ia["nom"],
+                ia["url"],
+                use_container_width=True,
+            )
+            st.write("")
 
 
 with tab_perfil:
