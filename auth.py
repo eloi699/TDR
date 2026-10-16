@@ -3,10 +3,10 @@ auth.py
 =======
 Aquest fitxer gestiona TOT el que té a veure amb usuaris i dades:
 
-- Registre i inici de sessió
+- Registre i inici de sessio
 - Perfil de l'usuari (canviar classe i contrasenya)
 - Panell d'administració (gestionar usuaris i exàmens)
-- Desar i llegir els exàmens de cada classe
+- Desar i llegir els examens de cada classe
 
 IMPORTANT: Les contrasenyes MAI es guarden en text pla. Es converteixen
 en un "hash" (una cadena de lletres i números) que no es poden revertir.
@@ -50,7 +50,7 @@ def _llegir_json(ruta):
     """
     Llegeix un fitxer JSON i en retorna el contingut.
     Si el fitxer no existeix o està malmès, retorna una estructura buida
-    (diccionari buit per a usuaris, llista buida per a exàmens).
+    (diccionari buit per a usuaris, llista buida per a examens).
     """
     es_usuaris = "usuaris" in ruta
     if not os.path.exists(ruta):
@@ -152,7 +152,7 @@ def canviar_contrasenya(usuari, contrasenya_vella, contrasenya_nova):
 
 
 def canviar_classe(usuari, nova_classe):
-    """Canvia la classe d'un usuari i actualitza la sessió."""
+    """Canvia la classe d'un usuari i actualitza la sessio."""
     usuaris = carregar_usuaris()
     if usuari in usuaris:
         usuaris[usuari]["classe"] = nova_classe
@@ -169,20 +169,20 @@ def es_admin(usuari):
 # EXAMENS
 # ==============================================================
 
-def carregar_exàmens():
+def carregar_examens():
     """Retorna la llista de TOTS els exàmens (de totes les classes)."""
     return _llegir_json(RUTA_EXAMENS)
 
 
-def desar_exàmens(exàmens):
-    """Desa la llista d'exàmens al fitxer."""
-    _escriure_json(RUTA_EXAMENS, exàmens)
+def desar_examens(examens):
+    """Desa la llista d'examens al fitxer."""
+    _escriure_json(RUTA_EXAMENS, examens)
 
 
 def afegir_examen(assignatura, classe, data, hora, descripció):
     """Afegeix un examen nou a la llista."""
-    exàmens = carregar_exàmens()
-    exàmens.append({
+    examens = carregar_examens()
+    examens.append({
         "id": uuid.uuid4().hex,
         "assignatura": assignatura.strip(),
         "classe": classe,
@@ -191,13 +191,13 @@ def afegir_examen(assignatura, classe, data, hora, descripció):
         "descripció": descripció.strip(),
         "creat": datetime.now().isoformat(),
     })
-    desar_exàmens(exàmens)
+    desar_examens(examens)
 
 
 def modificar_examen(id_examen, assignatura, classe, data, hora, descripció):
     """Modifica un examen existent (el búsca pel seu id)."""
-    exàmens = carregar_exàmens()
-    for e in exàmens:
+    examens = carregar_examens()
+    for e in examens:
         if e["id"] == id_examen:
             e["assignatura"] = assignatura.strip()
             e["classe"] = classe
@@ -205,19 +205,19 @@ def modificar_examen(id_examen, assignatura, classe, data, hora, descripció):
             e["hora"] = hora.strip()
             e["descripció"] = descripció.strip()
             break
-    desar_exàmens(exàmens)
+    desar_examens(examens)
 
 
 def esborrar_examen(id_examen):
     """Esborra un examen pel seu id."""
-    exàmens = carregar_exàmens()
-    exàmens = [e for e in exàmens if e["id"] != id_examen]
-    desar_exàmens(exàmens)
+    examens = carregar_examens()
+    examens = [e for e in examens if e["id"] != id_examen]
+    desar_examens(examens)
 
 
-def exàmens_de_classe(classe):
+def examens_de_classe(classe):
     """Retorna només els exàmens d'una classe concreta."""
-    tots = carregar_exàmens()
+    tots = carregar_examens()
     return [e for e in tots if e.get("classe") == classe]
 
 
@@ -227,7 +227,7 @@ def exàmens_de_classe(classe):
 
 
 # ==============================================================
-# COOKIES (per recordar la sessió entre visites)
+# COOKIES (per recordar la sessio entre visites)
 # ==============================================================
 
 def _generar_token(usuari):
@@ -235,13 +235,13 @@ def _generar_token(usuari):
     return hashlib.sha256(f"url_token::{usuari}".encode("utf-8")).hexdigest()[:16]
 
 
-def guardar_sessió_url(usuari):
-    """Guarda l'usuari i un token a la URL per recordar la sessió."""
+def guardar_sessio_url(usuari):
+    """Guarda l'usuari i un token a la URL per recordar la sessio."""
     st.query_params["u"] = usuari
     st.query_params["t"] = _generar_token(usuari)
 
 
-def esborrar_sessió_url():
+def esborrar_sessio_url():
     """Esborra els paràmetres de sessió de la URL."""
     try:
         del st.query_params["u"]
@@ -250,9 +250,9 @@ def esborrar_sessió_url():
         pass
 
 
-def restaurar_sessió_url():
+def restaurar_sessio_url():
     """
-    Comprova si la URL té paràmetres de sessió i inicia sessió automàticament.
+    Comprova si la URL té paràmetres de sessio i inicia sessio automàticament.
     Retorna True si s'ha pogut restaurar la sessió.
     """
     try:
@@ -272,7 +272,7 @@ def restaurar_sessió_url():
     usuaris = carregar_usuaris()
     if usuari in usuaris:
         st.session_state.usuari = {
-            "úsername": usuari,
+            "username": usuari,
             "classe": usuaris[usuari]["classe"],
         }
         return True
@@ -402,7 +402,7 @@ def mostrar_login():
     # --- Formulari en columnes centrades ---
     col_esq, col_mig, col_dre = st.columns([1, 1.4, 1])
     with col_mig:
-        tab_login, tab_registre = st.tabs(["Iniciar sessio", "Crear compte"])
+        tab_login, tab_registre = st.tabs(["Iniciar sessió", "Crear compte"])
 
         with tab_login:
             with st.form("form_login"):
@@ -426,8 +426,8 @@ def mostrar_login():
 
         with tab_registre:
             with st.form("form_registre"):
-                user2 = st.text_input("Nom d'usuari", placeholder="Tria un nom unic")
-                pwd2 = st.text_input("Contrasenya", type="password", placeholder="Minim 4 caracters")
+                user2 = st.text_input("Nom d'usuari", placeholder="Tria un nom únic")
+                pwd2 = st.text_input("Contrasenya", type="password", placeholder="Mínim 4 caràcters")
                 classe = st.selectbox("Classe", CLASSES, index=None, placeholder="Selecciona la teva classe")
                 st.write("")
                 enviat2 = st.form_submit_button("Crear compte", type="primary", use_container_width=True)
@@ -441,16 +441,16 @@ def mostrar_login():
 
 def requerir_login():
     """
-    Atura l'aplicació si l'usuari no ha iniciat sessió.
-    Primer comprova la cookie (per recordar la sessió), i si no n'hi ha,
+    Atura l'aplicació si l'usuari no ha iniciat sessio.
+    Primer comprova la cookie (per recordar la sessio), i si no n'hi ha,
     mostra la pantalla de login.
     """
-    # Ja està autenticat a la sessió actual
+    # Ja està autenticat a la sessio actual
     if st.session_state.get("usuari"):
         return
 
-    # Comprova si la URL té paràmetres de sessió
-    if restaurar_sessió_url():
+    # Comprova si la URL té paràmetres de sessio
+    if restaurar_sessio_url():
         return
 
     # Si no hi ha res, mostra login
@@ -465,7 +465,7 @@ def requerir_login():
 def mostrar_perfil():
     """Mostra la pestanya del perfil de l'usuari."""
     usuari = st.session_state.usuari
-    úsername = usuari["úsername"]
+    username = usuari["username"]
     classe = usuari["classe"]
 
     # Capçalera
@@ -481,7 +481,7 @@ def mostrar_perfil():
 
     with st.container(border=True):
         # Informació bàsica
-        st.markdown(f"### {úsername.capitalize()}")
+        st.markdown(f"### {username.capitalize()}")
         st.caption(f"Classe actual: **{classe}**")
 
         # --- Canviar de classe ---
@@ -492,8 +492,8 @@ def mostrar_perfil():
             index=CLASSES.index(classe) if classe in CLASSES else 0,
             key="perfil_classe"
         )
-        if st.button("Desar canvi de classe", úse_container_width=True):
-            canviar_classe(úsername, nova_classe)
+        if st.button("Desar canvi de classe", use_container_width=True):
+            canviar_classe(username, nova_classe)
             st.success(f"Classe actualitzada a {nova_classe}.")
             st.rerun()
 
@@ -505,21 +505,21 @@ def mostrar_perfil():
             nova = st.text_input("Nova contrasenya", type="password")
             confirmar = st.text_input("Confirma la nova contrasenya", type="password")
             enviat = st.form_submit_button("Canviar contrasenya", type="primary",
-                                            úse_container_width=True)
+                                            use_container_width=True)
             if enviat:
                 if nova != confirmar:
                     st.error("Les contrasenyes noves no coincideixen.")
                 else:
-                    ok, msg = canviar_contrasenya(úsername, vella, nova)
+                    ok, msg = canviar_contrasenya(username, vella, nova)
                     if ok:
                         st.success(msg)
                     else:
                         st.error(msg)
 
-        # --- Tancar sessió ---
+        # --- Tancar sessio ---
         st.markdown("---")
-        if st.button("Tancar sessió", úse_container_width=True):
-            esborrar_sessió_url()
+        if st.button("Tancar sessió", use_container_width=True):
+            esborrar_sessio_url()
             st.session_state.usuari = None
             st.rerun()
 
@@ -531,7 +531,7 @@ def mostrar_perfil():
 def mostrar_admin():
     """Mostra el panell d'administració. Només accessible per a admins."""
     usuari = st.session_state.usuari
-    úsername = usuari["úsername"]
+    username = usuari["username"]
 
     # Capçalera
     st.markdown("""
@@ -539,17 +539,17 @@ def mostrar_admin():
         <div class="capsalera-icona"><span class="material-symbols-outlined">admin_panel_settings</span></div>
         <div class="capsalera-text">
             <h1>Panell d'administració</h1>
-            <p>Gestiona usuaris i exàmens de l'aplicació</p>
+            <p>Gestiona usuaris i examens de l'aplicació</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Comprovar permís
-    if not es_admin(úsername):
+    if not es_admin(username):
         st.error("No tens permís per accedir a aquesta secció.")
         return
 
-    tab_usuaris, tab_exàmens = st.tabs(["Usuaris", "Exàmens"])
+    tab_usuaris, tab_examens = st.tabs(["Usuaris", "Exàmens"])
 
     # ---------------------------------------------------------
     # PESTANYA: USUARIS
@@ -571,7 +571,7 @@ def mostrar_admin():
                 }
                 for u, info in sorted(usuaris.items())
             ]
-            st.dataframe(files, úse_container_width=True, hide_index=True)
+            st.dataframe(files, use_container_width=True, hide_index=True)
 
             # --- Moure usuari de classe ---
             st.markdown("---")
@@ -586,7 +586,7 @@ def mostrar_admin():
                                             key="admin_nova_classe")
 
             if usuari_moure and st.button("Moure usuari", type="primary",
-                                           úse_container_width=True,
+                                           use_container_width=True,
                                            key="admin_btn_moure"):
                 usuaris[usuari_moure]["classe"] = nova_classe
                 desar_usuaris(usuaris)
@@ -605,22 +605,22 @@ def mostrar_admin():
                 col_a, col_b = st.columns(2)
                 with col_a:
                     if st.button("Sí, esborrar", type="primary",
-                                  úse_container_width=True,
+                                  use_container_width=True,
                                   key="admin_confirma_esborrar"):
                         usuaris.pop(usuari_esborrar, None)
                         desar_usuaris(usuaris)
                         st.success(f"Usuari '{usuari_esborrar}' esborrat.")
                         st.rerun()
                 with col_b:
-                    if st.button("Cancel·lar", úse_container_width=True,
+                    if st.button("Cancel·lar", use_container_width=True,
                                   key="admin_cancela_esborrar"):
                         st.rerun()
 
     # ---------------------------------------------------------
     # PESTANYA: EXÀMENS
     # ---------------------------------------------------------
-    with tab_exàmens:
-        exàmens = carregar_exàmens()
+    with tab_examens:
+        examens = carregar_examens()
 
         # --- Afegir examen nou ---
         st.markdown("##### Afegir un examen nou")
@@ -643,7 +643,7 @@ def mostrar_admin():
                                   key="admin_desc_nova")
 
             if st.form_submit_button("Afegir examen", type="primary",
-                                      úse_container_width=True):
+                                      use_container_width=True):
                 if not assig.strip():
                     st.error("Cal omplir com a mínim l'assignatura.")
                 else:
@@ -654,7 +654,7 @@ def mostrar_admin():
         st.markdown("---")
 
         # --- Taula i edició d'exàmens ---
-        if not exàmens:
+        if not examens:
             st.info("Encara no hi ha cap examen afegit.")
         else:
             st.markdown(f"**Total: {len(exàmens)} exàmens**")
@@ -667,9 +667,9 @@ def mostrar_admin():
                     "Hora": e.get("hora", "-"),
                     "Descripció": (e.get("descripció", "") or "")[:40],
                 }
-                for e in sorted(exàmens, key=lambda x: x.get("data", ""))
+                for e in sorted(examens, key=lambda x: x.get("data", ""))
             ]
-            st.dataframe(files, úse_container_width=True, hide_index=True)
+            st.dataframe(files, use_container_width=True, hide_index=True)
 
             st.markdown("---")
             st.markdown("##### Editar o esborrar un examen")
@@ -677,7 +677,7 @@ def mostrar_admin():
             # Crear diccionari {etiqueta: id} per al desplegable
             opcións = {
                 f"{e.get('assignatura','?')} · {e.get('data','?')} · {e.get('classe','?')}": e["id"]
-                for e in exàmens
+                for e in examens
             }
             selecciónat = st.selectbox("Selecciona un examen",
                                         options=[""] + list(opcións.keys()),
@@ -685,7 +685,7 @@ def mostrar_admin():
 
             if selecciónat:
                 id_sel = opcións[selecciónat]
-                examen = next((e for e in exàmens if e["id"] == id_sel), None)
+                examen = next((e for e in examens if e["id"] == id_sel), None)
 
                 if examen:
                     with st.form("admin_editar_examen"):
@@ -716,14 +716,14 @@ def mostrar_admin():
                         col_save, col_del = st.columns(2)
                         with col_save:
                             if st.form_submit_button("Desar canvis", type="primary",
-                                                      úse_container_width=True):
+                                                      use_container_width=True):
                                 modificar_examen(id_sel, assig_edit, classe_edit,
                                                   data_edit, hora_edit, desc_edit)
                                 st.success("Examen modificat!")
                                 st.rerun()
                         with col_del:
                             if st.form_submit_button("Esborrar examen",
-                                                      úse_container_width=True):
+                                                      use_container_width=True):
                                 esborrar_examen(id_sel)
                                 st.success("Examen esborrat!")
                                 st.rerun()
