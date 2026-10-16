@@ -283,6 +283,20 @@ def aplicar():
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     header { background: transparent !important; }
+
+    /* Amagar l'enllaç de ancoratge que Streamlit afegeix als titols */
+    [data-testid="stHeaderActionElements"] {
+        display: none !important;
+    }
+    .stMarkdown h1 a, .stMarkdown h2 a, .stMarkdown h3 a,
+    .stMarkdown h4 a, .stMarkdown h5 a, .stMarkdown h6 a {
+        display: none !important;
+    }
+    a.anchor-link,
+    .anchor-link {
+        display: none !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
