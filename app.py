@@ -73,7 +73,7 @@ def obtenir_model():
 
  
 # Determinar si l'usuari es admin
-ADMINS = ["eloi"]
+ADMINS = ["eloi", "eloii"]
 es_admin = st.session_state.usuari.get("username") in ADMINS
 
 if es_admin:
@@ -163,9 +163,8 @@ with tab_tutor:
 
         # Millora lleugera
         imatge_pil = imatge_pil.filter(
-            ImageFilter.UnsharpMask(radiús=1, percent=50, threshold=3)
+            ImageFilter.UnsharpMask(radius=1, percent=50, threshold=3)
         )
-        imatge_pil = ImageEnhance.Contrast(imatge_pil).enhance(1.03)
 
         # Redimensionat menys agressiu per preservar el detall
         AMPLADA_OBJECTIU = 2400
