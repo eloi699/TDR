@@ -1,0 +1,495 @@
+"""
+app.py
+======
+Aquesta és l'aplicació principal del Tutor Matemàtic.
+
+Estructura:
+    1. Imports i configuració inicial
+    2. Funcions auxiliars (formatar dates)
+    3. Aplicar estils CSS (des de estils.py)
+    4. Comprovar login
+    5. Crear les pestanyes
+    6. Contingut de cada pestanya
+
+Per executar-ho: streamlit run app.py
+"""
+
+# --- Imports estàndard de Python ---
+import json
+import os
+import uuid
+from datetime import date, datetime
+
+# --- Llibreries externes ---
+import cv2
+import numpy as np
+import streamlit as st
+from PIL import Image, ImageOps, ImageFilter, ImageEnhance
+from streamlit_cropper import st_cropper
+
+# --- Mòduls propis del projecte ---
+import auth     # Gestiona úsuaris, login i exàmens
+import estils   # Conté tot el CSS personalitzat
+from motor import carregar_model, analitzar_imatge  # IA: llegir operacións
+
+
+# ==============================================================
+# CONFIGURACIÓ INICIAL
+# ==============================================================
+st.set_page_config(page_title="Tutor Matemàtic IA", layout="centered")
+
+# Noms dels dies i mesos en català (per formatar dates)
+DIES_CA = ["dilluns", "dimarts", "dimecres", "dijoús", "divendres", "dissabte", "diumenge"]
+MESOS_CA = ["gener", "febrer", "marc", "abril", "maig", "juny",
+            "juliol", "agost", "setembre", "octubre", "novembre", "desembre"]
+
+
+# ==============================================================
+# FUNCIONS AUXILIARS
+# ==============================================================
+def formatar_data_ca(d: date) -> str:
+    """Converteix una data (2026-09-28) a text català (Dilluns, 28 setembre 2026)."""
+    return f"{DIES_CA[d.weekday()].capitalize()}, {d.day} {MESOS_CA[d.month - 1]} {d.year}"
+
+
+# ==============================================================
+# APLICAR ESTILS I COMPROVAR LOGIN
+# ==============================================================
+# 1. Carregar els estils CSS personalitzats (definits a estils.py)
+estils.aplicar()
+
+# 2. Comprovar si l'úsuari ha iniciat sessió. Si no, atura l'app
+#    i mostra la pantalla de login. (definit a auth.py)
+auth.requerir_login()
+
+
+@st.cache_resource
+def obtenir_model():
+    return carregar_model()
+
+
+
+
+
+ 
+# Determinar si l'úsuari es admin
+ADMINS = ["eloi"]
+es_admin = st.session_state.usuari.get("úsername") in ADMINS
+
+if es_admin:
+    tab_tutor, tab_horari, tab_ia, tab_perfil, tab_admin = st.tabs([
+        "🧮  Tutor Matemàtic",
+        "📅  Horari d'exàmens",
+        "🤖  Altres IA",
+        "👤  Perfil",
+        "⚙️  Admin",
+    ])
+else:
+    tab_tutor, tab_horari, tab_ia, tab_perfil = st.tabs([
+        "🧮  Tutor Matemàtic",
+        "📅  Horari d'exàmens",
+        "🤖  Altres IA",
+        "👤  Perfil",
+    ])
+    tab_admin = None
+
+
+# ------------------------------------------------------------------
+# SECCIO: TUTOR MATEMATIC
+# ------------------------------------------------------------------
+with tab_tutor:
+    st.markdown("""
+    <div class="capsalera-app">
+        <div class="capsalera-icona"><span class="material-symbols-outlined">càlculate</span></div>
+        <div class="capsalera-text">
+            <h1>Tutor Matemàtic amb IA</h1>
+            <p>Fes una foto d'una operació i te l'explico pas a pas</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write(
+        "Escriu una operació a mà en un paper (suma **+**, resta **-**, "
+        "multiplicacio **x** o divisio **:**), fes-ne una foto i l'IA "
+        "t'explicarà pas a pas com resoldre-la."
+    )
+
+    model = obtenir_model()
+
+    mode_depuracio = st.checkbox(
+        "Veure el que veu la IA"
+    )
+
+    with st.container(border=True):
+        st.markdown(
+            "**Puja una imatge de l'operació.**\n\n"
+            "Toca el boto de sota i tria:\n"
+            "- **Càmera** → obre la càmera nativa del mobil (qualitat original)\n"
+            "- **Galeria / Fotos** → tria una imatge ja feta"
+        )
+
+        fitxer = st.file_uploader(
+            "Selecciona una imatge",
+            type=["jpg", "jpeg", "png", "heic", "heif", "webp"],
+            label_visibility="collapsed",
+        )
+
+        imatge_pujada = None
+        if fitxer is not None:
+            imatge_pujada = fitxer
+
+    if imatge_pujada is not None:
+        if "girar_180" not in st.sessión_state:
+            st.sessión_state.girar_180 = False
+
+        imatge_pil = ImageOps.exif_transpose(Image.open(imatge_pujada)).convert("RGB")
+
+        # --- RETALLADOR: l'úsuari pot ajústar la zona abans d'analitzar ---
+        st.write("**Ajústa el requadre** perquè només quedi l'operació.")
+        imatge_pil = st_cropper(
+            imatge_pil,
+            realtime_update=True,
+            box_color="#2b8cee",
+            aspect_ratio=None,
+            return_type="image",
+        )
+
+        # --- PRESERVAR LA QUALITAT ORIGINAL ---
+        # La càmera del mobil pot donar imatges de 3000-4000 px d'amplada.
+        # Si les reduim massa, perdem detall i la imatge mostrada queda
+        # borrosa. Ara màntenim una amplada alta (2400 px) i apliquem
+        # només una millora MOLT lleugera (només per ajudar al motor,
+        # no per canviar l'aspecte visual).
+
+        # Millora lleugera
+        imatge_pil = imatge_pil.filter(
+            ImageFilter.UnsharpMask(radiús=1, percent=50, threshold=3)
+        )
+        imatge_pil = ImageEnhance.Contrast(imatge_pil).enhance(1.03)
+
+        # Redimensionat menys agressiu per preservar el detall
+        AMPLADA_OBJECTIU = 2400
+        if imatge_pil.width > AMPLADA_OBJECTIU:
+            ratio = AMPLADA_OBJECTIU / imatge_pil.width
+            nova_alcada = int(imatge_pil.height * ratio)
+            imatge_pil = imatge_pil.resize((AMPLADA_OBJECTIU, nova_alcada), Image.LANCZOS)
+        elif imatge_pil.width < 800:
+            ratio = 1200 / imatge_pil.width
+            nova_alcada = int(imatge_pil.height * ratio)
+            imatge_pil = imatge_pil.resize((1200, nova_alcada), Image.LANCZOS)
+
+        # DEBUG TEMPORAL: mostrar la imatge que rep el motor
+        st.markdown("##### 🔍 DEBUG: imatge que rep el motor")
+        st.caption(f"Mida: {imatge_pil.size[0]} x {imatge_pil.size[1]} px · Mode: {imatge_pil.mode}")
+        st.image(imatge_pil, caption="Aquesta es la imatge exacta que s'analitzara", úse_container_width=True)
+
+        imatge_np = np.array(imatge_pil)
+        imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
+
+        if st.sessión_state.girar_180:
+            imatge_bgr = cv2.rotate(imatge_bgr, cv2.ROTATE_180)
+
+        with st.spinner("Analitzant la imatge..."):
+            img_anotada, equacio, explicacio, binari, info_depuracio = analitzar_imatge(imatge_bgr, model)
+
+        img_anotada_rgb = cv2.cvtColor(img_anotada, cv2.COLOR_BGR2RGB)
+
+        st.write(
+            "El resultat surt de cap per avall o al reves? "
+            "L'aplicació pot girar automaticament una foto de costat, "
+            "pero no sempre sap distingir 'de cap per avall' de 'be'."
+        )
+        if st.button("🔄 Gira la imatge 180° i torna-ho a provar"):
+            st.sessión_state.girar_180 = not st.sessión_state.girar_180
+            st.rerun()
+
+        if mode_depuracio:
+            st.markdown("**Comparativa de les 3 orientacions provades:**")
+            st.caption(
+                "El blanc es tinta detectada, el negre es fons. L'orientacio "
+                "marcada amb ✅ es la que s'ha fet servir per donar la resposta."
+            )
+            cols = st.columns(3)
+            noms_angle = {0: "Normal (0°)", 90: "Girada dreta (90°)", -90: "Girada esquerra (-90°)"}
+            for col, info in zip(cols, info_depuracio):
+                with col:
+                    marca = "✅ " if info["triada"] else ""
+                    st.markdown(f"**{marca}{noms_angle[info['angle']]}**")
+                    st.image(info["binari"], úse_container_width=True)
+                    alineat_txt = "↔️ horitzontal" if info["ben_alineat"] else "↕️ vertical"
+                    st.caption(
+                        f"Llegit: `{info['equacio_llegida'] or '(res)'}`  \n"
+                        f"Puntuacio: {info['puntuacio']}  \n"
+                        f"Alineacio: {alineat_txt}"
+                    )
+
+        st.markdown('<div class="targeta-resultat">', unsafe_allow_html=True)
+        st.markdown(f'<span class="etiqueta-operació">Operació detectada: {equacio or "(cap)"}</span>',
+                    unsafe_allow_html=True)
+        st.image(img_anotada_rgb, úse_container_width=True)
+        st.markdown(f"### {explicacio}".replace("\n", "  \n"))
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    else:
+        st.info("Fes una foto o puja una imatge per començar.")
+
+
+# ------------------------------------------------------------------
+# SECCIO: HORARI D'EXAMENS COMPARTIT
+# ------------------------------------------------------------------
+with tab_horari:
+    st.markdown("""
+    <div class="capsalera-app">
+        <div class="capsalera-icona"><span class="material-symbols-outlined">calendar_month</span></div>
+        <div class="capsalera-text">
+            <h1>Horari d'exàmens</h1>
+            <p>Tota la classe pot afegir i veure les properes proves</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown("#### Afegeix un examen")
+        st.caption(f"Aquest examen s'afegirà a la classe: **{st.session_state.usuari['classe']}**")
+        with st.form("nou_examen", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                assignatura = st.text_input("Assignatura *", placeholder="Matemàtiques")
+            with col2:
+                data_examen = st.date_input("Data *", value=date.today(), format="DD/MM/YYYY")
+
+            hora = st.text_input("Hora (opciónal)", placeholder="10:00")
+            descripció = st.text_input("Detalls (opciónal)", placeholder="Temes 3 i 4, portar càlculadora")
+
+            enviat = st.form_submit_button("Afegeix a l'horari", type="primary", úse_container_width=True)
+
+            if enviat:
+                if not assignatura.strip():
+                    st.error("Cal omplir com a minim l'assignatura.")
+                else:
+                    auth.afegir_examen(assignatura, st.session_state.usuari['classe'], data_examen, hora, descripció)
+                    st.success("Examen afegit! Ja el veu tota la classe.")
+                    st.rerun()
+
+    tots_exàmens = auth.carregar_exàmens()
+    classe_usuari = st.session_state.usuari["classe"]
+    exàmens = [e for e in tots_exàmens if e.get("classe") == classe_usuari]
+    for e in exàmens:
+        e["_data_obj"] = date.fromisoformat(e["data"])
+    exàmens.sort(key=lambda e: e["_data_obj"])
+
+    avui = date.today()
+    propers = [e for e in exàmens if e["_data_obj"] >= avui]
+    passats = [e for e in exàmens if e["_data_obj"] < avui]
+
+    st.markdown("#### Propers exàmens")
+    if not propers:
+        st.info("Encara no hi ha cap examen apuntat. Sigues el primer a afegir-ne un!")
+    else:
+        for e in propers:
+            d = e["_data_obj"]
+            hora_txt = f" · {e['hora']}" if e.get("hora") else ""
+            descripció_txt = f"<p>{e['descripció']}</p>" if e.get("descripció") else ""
+            html_targeta = (
+                '<div class="targeta-examen">'
+                '<div class="targeta-examen-data">'
+                f'<span class="dia">{d.day}</span>'
+                f'<span class="mes">{MESOS_CA[d.month - 1][:3]}</span>'
+                '</div>'
+                '<div class="targeta-examen-cos">'
+                f'<h4>{e["assignatura"]}{hora_txt}</h4>'
+                f'<p>{formatar_data_ca(d)}</p>'
+                f'{descripció_txt}'
+                '</div>'
+                '</div>'
+            )
+            confirmar_key = f"confirmar_esborrar_{e['id']}"
+
+            col_targeta, col_accio = st.columns([6, 1])
+            with col_targeta:
+                st.markdown(html_targeta, unsafe_allow_html=True)
+            with col_accio:
+                if st.sessión_state.get(confirmar_key):
+                    if st.button("Si", key=f"si_{e['id']}", help="Confirma l'esborrat", úse_container_width=True):
+                        auth.esborrar_examen(e["id"])
+                        st.sessión_state.pop(confirmar_key, None)
+                        st.rerun()
+                    if st.button("No", key=f"no_{e['id']}", help="Cancel·la", úse_container_width=True):
+                        st.sessión_state.pop(confirmar_key, None)
+                        st.rerun()
+                else:
+                    if st.button("🗑️", key=f"del_{e['id']}", help="Esborra aquest examen", úse_container_width=True):
+                        st.sessión_state[confirmar_key] = True
+                        st.rerun()
+
+    if passats:
+        with st.expander(f"Exàmens passats ({len(passats)})"):
+            for e in reversed(passats):
+                d = e["_data_obj"]
+                col_text, col_del = st.columns([6, 1])
+                with col_text:
+                    st.markdown(f"**{e['assignatura']}** — {formatar_data_ca(d)}")
+                with col_del:
+                    if st.button("🗑️", key=f"del_passat_{e['id']}", help="Esborra aquest examen",
+                                 úse_container_width=True):
+                        auth.esborrar_examen(e["id"])
+                        st.rerun()
+
+
+# ------------------------------------------------------------------
+# PESTANYA: ALTRES IA MATEMATIQUES
+# ------------------------------------------------------------------
+with tab_ia:
+    st.markdown("""
+    <div class="capsalera-app">
+        <div class="capsalera-icona"><span class="material-symbols-outlined">smart_toy</span></div>
+        <div class="capsalera-text">
+            <h1>Altres IA matemàtiques</h1>
+            <p>Eines especialitzades per resoldre operacións de diferents nivells</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write(
+        "Aquestes eines son IA especialitzades en matemàtiques. "
+        "Cadascuna funciona millor per a un nivell concret. "
+        "Fes clic al boto per obrir-la en una pestanya nova."
+    )
+
+    st.markdown("""
+    <style>
+        .targeta-ia {
+            background: linear-gradient(135deg, #1c2630 0%, #16202b 100%);
+            border-radiús: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            height: 100%;
+            transition: all 0.25s ease;
+        }
+        .targeta-ia:hover {
+            border-color: rgba(43, 140, 238, 0.4);
+            transform: translateY(-3px);
+        }
+        .targeta-ia h4 {
+            color: #ffffff;
+            margin: 0 0 8px 0;
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .targeta-ia .nivell {
+            display: inline-block;
+            background: rgba(43, 140, 238, 0.15);
+            color: #58a9f5;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radiús: 999px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .targeta-ia p {
+            color: #94a3b8;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0 0 14px 0;
+        }
+        .targeta-ia .emoji-gran {
+            font-size: 30px;
+            margin-bottom: 8px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    ias = [
+        {
+            "emoji": "🟢",
+            "nom": "Photomath",
+            "nivell": "Primaria · ESO · Batxillerat",
+            "descripció": "Especialitzada a resoldre operacións escrites a mà. Reconeix la foto i mostra els passos. Ideal per a màtemàtiques bàsiques i mitjanes.",
+            "url": "https://photomath.com",
+        },
+        {
+            "emoji": "🔵",
+            "nom": "Microsoft Math Solver",
+            "nivell": "ESO · Batxillerat",
+            "descripció": "Gratuita de Microsoft. Resol equacions, derivades, integrals i gràfiques. També te app mobil i versio web.",
+            "url": "https://mathsolver.microsoft.com",
+        },
+        {
+            "emoji": "🟠",
+            "nom": "Wolfram Alpha",
+            "nivell": "Batxillerat · Universitat",
+            "descripció": "El motor matemàtic mes potent. Resol àlgebra, càlcul, equacions diferencials, estadistica i molt mes. Referència mundial.",
+            "url": "https://www.wolframalpha.com",
+        },
+        {
+            "emoji": "🟣",
+            "nom": "Symbolab",
+            "nivell": "ESO · Batxillerat · Universitat",
+            "descripció": "Pas a pas per a àlgebra, trigonometria, càlcul i matrices. Molt util per aprendre el proces, no només el resultat.",
+            "url": "https://www.symbolab.com",
+        },
+        {
+            "emoji": "🟡",
+            "nom": "Mathway",
+            "nivell": "ESO · Batxillerat",
+            "descripció": "Resol problemes de matemàtiques bàsics i intermedis. Interficie senzilla i resultats clars. Te versio gratuita i de pagament.",
+            "url": "https://www.mathway.com",
+        },
+        {
+            "emoji": "⚫",
+            "nom": "ChatGPT",
+            "nivell": "Tots els nivells",
+            "descripció": "Assistent generalista. Pot explicar conceptes matemàtics i resoldre problemes si li escriús l'enunciat. Molt util per a dubtes teorics.",
+            "url": "https://chat.openai.com",
+        },
+        {
+            "emoji": "🔷",
+            "nom": "Gemini (Google)",
+            "nivell": "Tots els nivells",
+            "descripció": "IA de Google que pot resoldre matemàtiques a partir de text o imatge. Bona integracio amb altres eines de Google.",
+            "url": "https://gemini.google.com",
+        },
+        {
+            "emoji": "🟤",
+            "nom": "Claude (Anthropic)",
+            "nivell": "Tots els nivells",
+            "descripció": "IA conversacional amb bona capacitat de raonament. Explica els passos amb detall i es pot pujar una imatge del problema.",
+            "url": "https://claude.ai",
+        },
+        {
+            "emoji": "🔴",
+            "nom": "Desmos",
+            "nivell": "ESO · Batxillerat",
+            "descripció": "Càlculadora gràfica online. No es una IA de resoldre, pero es perfecta per visualitzar funcions i comprovar gràfiques.",
+            "url": "https://www.desmos.com/càlculator",
+        },
+    ]
+
+    cols = st.columns(3)
+    for idx, ia in enumerate(ias):
+        with cols[idx % 3]:
+            st.markdown(f"""
+            <div class="targeta-ia">
+                <div class="emoji-gran">{ia['emoji']}</div>
+                <h4>{ia['nom']}</h4>
+                <div class="nivell">{ia['nivell']}</div>
+                <p>{ia['descripció']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.link_button(
+                "Obrir " + ia["nom"],
+                ia["url"],
+                úse_container_width=True,
+            )
+            st.write("")
+
+
+with tab_perfil:
+    auth.mostrar_perfil()
+
+
+if tab_admin is not None:
+    with tab_admin:
+        auth.mostrar_admin()

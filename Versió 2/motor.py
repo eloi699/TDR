@@ -1,0 +1,572 @@
+"""
+motor.py
+========
+Aquest fitxer conté el "cervell" del projecte: el preprocessament de la
+imatge, la detecció de caràcters, la predicció amb la IA i la resolució
+matemàtica. NO té cap finestra emergent ni `input()`, perquè està pensat
+per ser cridat des d'una aplicació (per exemple app.py amb Streamlit).
+
+Si vols fer servir el projecte des de la terminal (sense app visual),
+pots seguir fent servir operacions.py tal com el tenies.
+"""
+
+import re
+
+import cv2
+import numpy as np
+import tensorflow as tf
+
+# ATENCIÓ: aquest ordre HA DE SER exactament el mateix que CLASSES
+# a entrenament_personalitzat.py. Si canvies l'ordre allà, canvia'l aquí.
+ETIQUETES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', 'x', ':', '=']
+
+MODEL_PATH = 'model_matematic.keras'
+
+
+def carregar_model():
+    """Carrega el model entrenat des del disc. Es crida un sol cop a l'app."""
+    try:
+        return tf.keras.models.load_model(MODEL_PATH)
+    except TypeError:
+        # Compatibilitat amb models desats amb versions mes noves de Keras
+        # (els inicialitzadors GlorotUniform antics no accepten
+        # 'input_axes'/'output_axes').
+        class GlorotUniformCompat(tf.keras.initializers.GlorotUniform):
+            def __init__(self, seed=None, **kwargs):
+                kwargs.pop("input_axes", None)
+                kwargs.pop("output_axes", None)
+                super().__init__(seed=seed)
+
+        return tf.keras.models.load_model(
+            MODEL_PATH,
+            custom_objects={"GlorotUniform": GlorotUniformCompat},
+        )
+
+
+def _formatar_numero(n):
+    """Converteix 5.0 -> 5, però deixa 5.5 tal qual."""
+    if isinstance(n, float) and n.is_integer():
+        return int(n)
+    if isinstance(n, float):
+        return round(n, 2)
+    return n
+
+
+def resoldre_equacio(text_net):
+    """
+    Resol una equació de primer grau amb una incògnita 'x' (per exemple
+    'x+3=8', '5x=20' o '2x+3=11'). Aquí la 'x' NO vol dir multiplicar,
+    sinó que és la incògnita: ho sabem perquè hi ha un signe '=' al text.
+    """
+    parts = text_net.split('=')
+    if len(parts) != 2:
+        return (f"Error: he detectat el signe '=', però l'expressió "
+                f"'{text_net}' no té una equació clara a cada banda.")
+
+    costat_x, costat_num = parts
+
+    # Si la incògnita és al costat dret (per exemple '11=2x+3'), els girem
+    if 'x' not in costat_x and 'x' in costat_num:
+        costat_x, costat_num = costat_num, costat_x
+
+    if 'x' not in costat_x or 'x' in costat_num:
+        return (f"Error: per ara només sé resoldre equacions amb la incògnita "
+                f"'x' a un únic costat (com '2x+3=11'). No he pogut interpretar "
+                f"'{text_net}'.")
+
+    coincidencia = re.fullmatch(r'(\d*)x([+-]\d+)?', costat_x)
+    if not coincidencia:
+        return (f"Error: l'equació '{text_net}' té una forma que encara no sé "
+                f"resoldre (de moment: 'x+3=8', '5x=20' o '2x+3=11').")
+
+    coef_text, const_text = coincidencia.groups()
+    coeficient = int(coef_text) if coef_text else 1
+    constant = int(const_text) if const_text else 0
+
+    try:
+        resultat_dreta = float(costat_num)
+    except ValueError:
+        return f"Error: '{costat_num}' no és un número vàlid a l'altra banda de l'equació."
+
+    if coeficient == 0:
+        return "Error: el coeficient de la x no pot ser 0."
+
+    explicacio = "EXPLICACIÓ PAS A PAS (equació de primer grau):\n\n"
+    explicacio += f"Tenim l'equació: {costat_x} = {_formatar_numero(resultat_dreta)}\n\n"
+
+    pas = 1
+    valor_actual = resultat_dreta
+
+    if constant != 0:
+        signe_original = '+' if constant > 0 else '-'
+        signe_oposat = '-' if constant > 0 else '+'
+        valor_actual = resultat_dreta - constant
+        explicacio += (
+            f"Pas {pas}: Passem el '{signe_original}{abs(constant)}' a l'altra banda "
+            f"canviant-li el signe: {coeficient}x = {_formatar_numero(resultat_dreta)} "
+            f"{signe_oposat} {abs(constant)} = {_formatar_numero(valor_actual)}.\n"
+        )
+        pas += 1
+
+    if coeficient != 1:
+        x_valor = valor_actual / coeficient
+        explicacio += (
+            f"Pas {pas}: Aïllem la x dividint els dos costats pel coeficient "
+            f"{coeficient}: x = {_formatar_numero(valor_actual)} / {coeficient} "
+            f"= {_formatar_numero(x_valor)}.\n"
+        )
+    else:
+        x_valor = valor_actual
+        if pas == 1:
+            explicacio += "Pas 1: La incògnita ja està sola en un costat de l'equació.\n"
+
+    explicacio += f"\nEl valor de la incògnita és: x = {_formatar_numero(x_valor)}"
+    return explicacio
+
+
+def resoldre_i_explicar(text_equacio):
+    """
+    Rep un text com '38+756-45612' i retorna una explicacio pas a pas.
+    Suporta operacions encadenades (mes d'un operador), avaluades
+    d'esquerra a dreta.
+    """
+    if not text_equacio:
+        return "No he detectat cap caracter a la imatge."
+
+    text_net = text_equacio.replace(" ", "").replace("=", "")
+
+    operadors_func = {
+        '+': lambda a, b: a + b,
+        '-': lambda a, b: a - b,
+        'x': lambda a, b: a * b,
+    }
+
+    tokens = []
+    numero_actual = ''
+    for ch in text_net:
+        if ch.isdigit():
+            numero_actual += ch
+        elif ch in operadors_func or ch == ':':
+            if numero_actual:
+                tokens.append(('num', int(numero_actual)))
+                numero_actual = ''
+            tokens.append(('op', ch))
+    if numero_actual:
+        tokens.append(('num', int(numero_actual)))
+
+    if len(tokens) < 3:
+        return "Nomes he llegit caracters ('" + text_equacio + "'), pero no he detectat cap operacio completa."
+
+    if tokens[0][0] != 'num' or tokens[-1][0] != 'num':
+        return "Error: l'expressio '" + text_equacio + "' no comenca o acaba amb un numero."
+
+    for i, (tipus, _) in enumerate(tokens):
+        esperat = 'num' if i % 2 == 0 else 'op'
+        if tipus != esperat:
+            return "Error: l'expressio '" + text_equacio + "' no te el format esperat."
+
+    passos = []
+    resultat = tokens[0][1]
+    for i in range(1, len(tokens), 2):
+        op = tokens[i][1]
+        num = tokens[i + 1][1]
+        a = resultat
+
+        if op == ':':
+            if num == 0:
+                return "Error: no es pot dividir per zero."
+            resultat_float = a / num
+            resultat = int(resultat_float) if resultat_float.is_integer() else round(resultat_float, 2)
+        else:
+            resultat = operadors_func[op](a, num)
+
+        passos.append((op, a, num, resultat))
+
+    verbs = {'+': 'sumar', '-': 'restar', 'x': 'multiplicar', ':': 'dividir'}
+    noms = {'+': 'suma', '-': 'resta', 'x': 'multiplicacio', ':': 'divisio'}
+
+    if len(passos) == 1:
+        op, a, num, r = passos[0]
+        verb = verbs[op]
+        nom_op = noms[op]
+        explicacio = (
+            "Pas 1: He llegit el simbol '" + op + "', que significa que hem de " + verb + ".\n"
+            "Pas 2: Els nombres de l'operacio son el " + str(a) + " i el " + str(num) + ".\n"
+            "Pas 3: Fem la " + nom_op + ": " + str(a) + " " + op + " " + str(num) + ".\n\n"
+            "El resultat final es: " + str(r)
+        )
+    else:
+        explicacio = ""
+        for i, (op, a, num, r) in enumerate(passos, start=1):
+            explicacio += "Pas " + str(i) + ": " + str(a) + " " + op + " " + str(num) + " = " + str(r) + "\n"
+        explicacio += "\nEl resultat final es: " + str(resultat)
+
+    return explicacio
+
+
+def _detectar_rectangles(binari):
+    """Troba els rectangles de cada caràcter, fusionant els símbols de dos traços (':' i '=')."""
+    contorns, _ = cv2.findContours(binari, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    candidats = []
+    for c in contorns:
+        x, y, w, h = cv2.boundingRect(c)
+        area = cv2.contourArea(c)
+        # Abans el MORPH_OPEN eliminava el soroll petit, però també trencava
+        # traços prims com el '+'. Ara filtrem soroll aquí, per àrea, sense
+        # malmetre la forma dels símbols.
+        if h > 5 and area > 8:
+            candidats.append([x, y, w, h])
+
+    if candidats:
+        alcada_ref = max(c[3] for c in candidats)
+
+        def es_punt(rect):
+            _, _, w, h = rect
+            aspecte = w / float(h) if h > 0 else 0
+            return h < alcada_ref * 0.35 and 0.5 < aspecte < 1.8
+
+        usats = set()
+        fusionats = []
+        for i in range(len(candidats)):
+            if i in usats or not es_punt(candidats[i]):
+                continue
+            for j in range(i + 1, len(candidats)):
+                if j in usats or not es_punt(candidats[j]):
+                    continue
+                x1, y1, w1, h1 = candidats[i]
+                x2, y2, w2, h2 = candidats[j]
+                solapament_horitzontal = min(x1 + w1, x2 + w2) - max(x1, x2)
+                amplada_mitjana = (w1 + w2) / 2
+                gap_vertical = max(y1, y2) - min(y1 + h1, y2 + h2)
+                if solapament_horitzontal > amplada_mitjana * 0.3 and gap_vertical < alcada_ref * 0.9:
+                    x_min, y_min = min(x1, x2), min(y1, y2)
+                    x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                    fusionats.append([x_min, y_min, x_max - x_min, y_max - y_min])
+                    usats.add(i)
+                    usats.add(j)
+                    break
+
+        if fusionats:
+            candidats = [c for idx, c in enumerate(candidats) if idx not in usats] + fusionats
+
+    # --- FUSIÓ DE LES DUES RATLLES (pel símbol '=') ---
+    # El signe d'igual es pot detectar com DUES ratlles amples i primes,
+    # una a sobre de l'altra (semblants al guió de la resta, però en parella).
+    if candidats:
+        alcada_ref2 = max(c[3] for c in candidats)
+        amplada_imatge2 = binari.shape[1]
+
+        def es_ratlla(rect):
+            _, _, w, h = rect
+            aspecte = w / float(h) if h > 0 else 0
+            return (
+                aspecte > 2.2
+                and 5 <= h < alcada_ref2 * 0.4
+                and w < amplada_imatge2 * 0.5
+                and w < alcada_ref2 * 4
+            )
+
+        usats2 = set()
+        fusionats2 = []
+        for i in range(len(candidats)):
+            if i in usats2 or not es_ratlla(candidats[i]):
+                continue
+            for j in range(i + 1, len(candidats)):
+                if j in usats2 or not es_ratlla(candidats[j]):
+                    continue
+                x1, y1, w1, h1 = candidats[i]
+                x2, y2, w2, h2 = candidats[j]
+                solapament_horitzontal = min(x1 + w1, x2 + w2) - max(x1, x2)
+                amplada_mitjana = (w1 + w2) / 2
+                gap_vertical = max(y1, y2) - min(y1 + h1, y2 + h2)
+                if solapament_horitzontal > amplada_mitjana * 0.5 and 0 <= gap_vertical < alcada_ref2 * 0.6:
+                    x_min, y_min = min(x1, x2), min(y1, y2)
+                    x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                    fusionats2.append([x_min, y_min, x_max - x_min, y_max - y_min])
+                    usats2.add(i)
+                    usats2.add(j)
+                    break
+
+        if fusionats2:
+            candidats = [c for idx, c in enumerate(candidats) if idx not in usats2] + fusionats2
+
+    # --- FUSIÓ DEL '+' TRENCAT EN DOS TROSSOS ---
+    # Si el traç horitzontal i el vertical del '+' han quedat com a
+    # contorns separats, els ajuntem. Però NOMÉS quan un tros és
+    # clarament horitzontal (ample i prim) i l'altre clarament vertical
+    # (alt i estret) — no qualsevol parell de trossos petits — i quan el
+    # resultat final no sigui més gran que un sol caràcter. Així evitem
+    # que es fusionin dígits sencers entre ells per error.
+    if candidats:
+        alcada_ref3 = max(c[3] for c in candidats)
+
+        def es_barra_horitzontal(rect):
+            _, _, w, h = rect
+            aspecte = w / float(h) if h > 0 else 0
+            return aspecte > 1.3 and h < alcada_ref3 * 0.55
+
+        def es_barra_vertical(rect):
+            _, _, w, h = rect
+            aspecte = w / float(h) if h > 0 else 0
+            return aspecte < 0.75 and w < alcada_ref3 * 0.55
+
+        usats3 = set()
+        fusionats3 = []
+        for i in range(len(candidats)):
+            if i in usats3 or not es_barra_horitzontal(candidats[i]):
+                continue
+            for j in range(len(candidats)):
+                if j == i or j in usats3 or not es_barra_vertical(candidats[j]):
+                    continue
+                x1, y1, w1, h1 = candidats[i]
+                x2, y2, w2, h2 = candidats[j]
+                es_toquen = not (x1 + w1 < x2 - 3 or x2 + w2 < x1 - 3 or
+                                  y1 + h1 < y2 - 3 or y2 + h2 < y1 - 3)
+                x_min, y_min = min(x1, x2), min(y1, y2)
+                x_max, y_max = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                mida_ok = (x_max - x_min) < alcada_ref3 * 1.2 and (y_max - y_min) < alcada_ref3 * 1.2
+                if es_toquen and mida_ok:
+                    fusionats3.append([x_min, y_min, x_max - x_min, y_max - y_min])
+                    usats3.add(i)
+                    usats3.add(j)
+                    break
+
+        if fusionats3:
+            candidats = [c for idx, c in enumerate(candidats) if idx not in usats3] + fusionats3
+
+    rectangles = []
+    if candidats:
+        alcada_maxima = max(c[3] for c in candidats)
+        amplada_imatge = binari.shape[1]
+        for x, y, w, h in candidats:
+            aspecte = w / float(h) if h > 0 else 0
+            prou_alt = h >= (alcada_maxima * 0.40)
+            # Un guió de veritat (el signe '-') mai serà tan ample com mig
+            # full de la imatge, ni gaire més ample que l'alçada dels altres
+            # caràcters. Si ho és, és molt més probable que sigui una ratlla
+            # del quadern o un altre artefacte de la foto, no un signe.
+      
+            sembla_guio = (
+                aspecte > 2.2
+                and (h >= 5)
+                and (h < alcada_maxima * 0.40)
+                and (w < amplada_imatge * 0.5)
+                and (w < alcada_maxima * 4)
+            )
+            if prou_alt or sembla_guio:
+                rectangles.append((x, y, w, h))
+
+    # --- XARXA DE SEGURETAT: DIVIDIR BLOCS MASSA AMPLES ---
+    # Si tot i les correccions anteriors un requadre segueix sent molt més
+    # ample que alt (senyal que en realitat conté diversos caràcters que
+    # es toquen), busquem "valls" (columnes gairebé sense tinta) per
+    # partir-lo en trossos més petits.
+    rectangles_finals = []
+    if rectangles:
+        alcada_ref4 = max(r[3] for r in rectangles)
+        for (x, y, w, h) in rectangles:
+            aspecte = w / float(h) if h > 0 else 0
+            if aspecte > 1.6 and h >= alcada_ref4 * 0.4:
+                roi = binari[y:y + h, x:x + w]
+                densitat = (roi > 0).sum(axis=0)
+                llindar = max(1, int(roi.shape[0] * 0.06))
+                buida = densitat <= llindar
+
+                trossos = []
+                inici = None
+                for i, es_buida in enumerate(buida):
+                    if not es_buida and inici is None:
+                        inici = i
+                    elif es_buida and inici is not None:
+                        trossos.append((inici, i))
+                        inici = None
+                if inici is not None:
+                    trossos.append((inici, len(buida)))
+
+                trossos = [t for t in trossos if (t[1] - t[0]) > 3]
+
+                if len(trossos) > 1:
+                    for (ini, fi) in trossos:
+                        rectangles_finals.append((x + ini, y, fi - ini, h))
+                    continue
+
+            rectangles_finals.append((x, y, w, h))
+
+    return sorted(rectangles_finals, key=lambda r: r[0])
+
+
+def _girar_imatge(img, angle_graus):
+    """Gira la imatge 90 graus en un sentit o l'altre. angle_graus=0 la deixa igual."""
+    if angle_graus == 90:
+        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    elif angle_graus == -90:
+        return cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return img
+
+
+
+def _classificar_roi(roi, model):
+    """Classifica un ROI binaritzat. Retorna (caracter, confianca 0-100)."""
+    h_roi, w_roi = roi.shape
+    if h_roi == 0 or w_roi == 0:
+        return "", 0.0
+    mida_max = max(w_roi, h_roi)
+    pad_y = (mida_max - h_roi) // 2 + 4
+    pad_x = (mida_max - w_roi) // 2 + 4
+    quadrat = cv2.copyMakeBorder(roi, pad_y, pad_y, pad_x, pad_x, cv2.BORDER_CONSTANT, value=0)
+    final_ia = cv2.resize(quadrat, (28, 28))
+    ia_input = final_ia.reshape(1, 28, 28, 1).astype('float32') / 255
+    prediccions = model.predict(ia_input, verbose=0)[0]
+    idx = int(np.argmax(prediccions))
+    return ETIQUETES[idx], prediccions[idx] * 100
+
+
+def _processar_una_orientacio(img_bgr, model):
+    img_anotada = img_bgr.copy()
+
+    gris = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    suau = cv2.GaussianBlur(gris, (7, 7), 0)
+    mida_bloc = 41
+    constant_c = 15
+    binari = cv2.adaptiveThreshold(
+        suau, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        mida_bloc,
+        constant_c,
+    )
+    kernel_corro = np.ones((3, 1), np.uint8)
+    binari = cv2.morphologyEx(binari, cv2.MORPH_CLOSE, kernel_corro)
+
+    rectangles = _detectar_rectangles(binari)
+
+    if rectangles:
+        alcada_max_rects = max(h for (_, _, _, h) in rectangles)
+        rects_per_alineacio = [r for r in rectangles if r[3] >= alcada_max_rects * 0.5]
+    else:
+        rects_per_alineacio = []
+
+    if len(rects_per_alineacio) >= 2:
+        centres_x = [x + w / 2 for (x, y, w, h) in rects_per_alineacio]
+        centres_y = [y + h / 2 for (x, y, w, h) in rects_per_alineacio]
+        dispersio_x = max(centres_x) - min(centres_x)
+        dispersio_y = max(centres_y) - min(centres_y)
+        ben_alineat_horitzontalment = dispersio_x >= dispersio_y
+    else:
+        ben_alineat_horitzontalment = True
+
+    # Interpretacio A: multi-caracter
+    equacio_multi = ""
+    conf_multi_list = []
+    boxes_multi = []
+    for (x, y, w, h) in rectangles:
+        roi = binari[y:y + h, x:x + w]
+        car, conf = _classificar_roi(roi, model)
+        equacio_multi += car
+        conf_multi_list.append(conf)
+        boxes_multi.append((x, y, w, h, car, conf))
+    conf_mitjana_multi = sum(conf_multi_list) / len(conf_multi_list) if conf_multi_list else 0
+
+    # Interpretacio B: un sol caracter (bounding box de TOTS els contorns)
+    contorns, _ = cv2.findContours(binari, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contorns_valids = [c for c in contorns if cv2.contourArea(c) > 5]
+    equacio_single = ""
+    conf_single = 0.0
+    box_single = None
+    if contorns_valids:
+        caixes = [cv2.boundingRect(c) for c in contorns_valids]
+        x_min = min(cx for cx, cy, cw, ch in caixes)
+        y_min = min(cy for cx, cy, cw, ch in caixes)
+        x_max = max(cx + cw for cx, cy, cw, ch in caixes)
+        y_max = max(cy + ch for cx, cy, cw, ch in caixes)
+        roi_single = binari[y_min:y_max, x_min:x_max]
+        if roi_single.size > 0:
+            equacio_single, conf_single = _classificar_roi(roi_single, model)
+            box_single = (x_min, y_min, x_max, y_max, equacio_single, conf_single)
+
+    # Decisio: si tenim 0-1 rectangles -> single. Si single te molta mes confianca -> single.
+    if len(rectangles) <= 1:
+        usar_single = True
+    elif conf_single > conf_mitjana_multi + 15 and conf_single > 75 and len(equacio_single) == 1:
+        usar_single = True
+    else:
+        usar_single = False
+
+    if usar_single and box_single is not None:
+        equacio_llegida = equacio_single
+        conf_mitjana = conf_single
+        x1, y1, x2, y2, car, conf = box_single
+        cv2.rectangle(img_anotada, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(img_anotada, f"{car} ({conf:.0f}%)", (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    else:
+        equacio_llegida = equacio_multi
+        conf_mitjana = conf_mitjana_multi
+        for (x, y, w, h, car, conf) in boxes_multi:
+            cv2.rectangle(img_anotada, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(img_anotada, f"{car} ({conf:.0f}%)", (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+    explicacio_prova = resoldre_i_explicar(equacio_llegida) if equacio_llegida else ""
+    es_equacio_valida = bool(equacio_llegida) and not explicacio_prova.startswith(("Error", "Només"))
+
+    bonus_alineacio = 2000 if ben_alineat_horitzontalment else 0
+    bonus_validesa = 1000 if es_equacio_valida else 0
+    puntuacio = bonus_alineacio + bonus_validesa + conf_mitjana + (len(equacio_llegida) * 2)
+
+    return {
+        "img_anotada": img_anotada,
+        "equacio_llegida": equacio_llegida,
+        "binari": binari,
+        "puntuacio": puntuacio,
+        "ben_alineat": ben_alineat_horitzontalment,
+    }
+
+
+def analitzar_imatge(img_bgr, model):
+    """
+    Rep una imatge (array BGR d'OpenCV) i el model ja carregat.
+    Prova la imatge en 3 orientacions (normal, girada 90° a la dreta i
+    girada 90° a l'esquerra) i es queda amb la que dona un resultat més
+    fiable, per no dependre de com s'ha sostingut el mòbil en fer la foto.
+
+    Retorna:
+        img_anotada   -> còpia de la imatge (ja orientada correctament) amb
+                         els requadres i etiquetes dibuixats (BGR)
+        equacio_llegida -> text amb el que la IA ha llegit (ex: '12:4')
+        explicacio    -> text amb la resolució pas a pas
+        binari        -> imatge en blanc i negre de l'orientació triada (útil per depurar)
+        info_depuracio -> llista amb un resum de les 3 orientacions provades
+                           (angle, text llegit, puntuació, binari), útil per
+                           entendre per què s'ha triat una orientació o una altra
+    """
+    candidats = []
+    for angle in (0, 90, -90):
+        img_girada = _girar_imatge(img_bgr, angle)
+        resultat = _processar_una_orientacio(img_girada, model)
+        resultat["angle"] = angle
+        candidats.append(resultat)
+
+    millor = max(candidats, key=lambda r: r["puntuacio"])
+
+    img_anotada = millor["img_anotada"]
+    equacio_llegida = millor["equacio_llegida"]
+    binari = millor["binari"]
+
+    info_depuracio = [
+        {
+            "angle": c["angle"],
+            "equacio_llegida": c["equacio_llegida"],
+            "puntuacio": round(c["puntuacio"], 1),
+            "binari": c["binari"],
+            "ben_alineat": c["ben_alineat"],
+            "triada": c is millor,
+        }
+        for c in candidats
+    ]
+
+    explicacio = resoldre_i_explicar(equacio_llegida) if equacio_llegida else \
+        "No he detectat cap caràcter a la imatge. Prova amb més llum o més a prop."
+
+    return img_anotada, equacio_llegida, explicacio, binari, info_depuracio
