@@ -139,8 +139,8 @@ with tab_tutor:
             imatge_pujada = fitxer
 
     if imatge_pujada is not None:
-        if "girar_180" not in st.sessión_state:
-            st.sessión_state.girar_180 = False
+        if "girar_180" not in st.session_state:
+            st.session_state.girar_180 = False
 
         imatge_pil = ImageOps.exif_transpose(Image.open(imatge_pujada)).convert("RGB")
 
@@ -186,7 +186,7 @@ with tab_tutor:
         imatge_np = np.array(imatge_pil)
         imatge_bgr = cv2.cvtColor(imatge_np, cv2.COLOR_RGB2BGR)
 
-        if st.sessión_state.girar_180:
+        if st.session_state.girar_180:
             imatge_bgr = cv2.rotate(imatge_bgr, cv2.ROTATE_180)
 
         with st.spinner("Analitzant la imatge..."):
@@ -200,7 +200,7 @@ with tab_tutor:
             "pero no sempre sap distingir 'de cap per avall' de 'be'."
         )
         if st.button("🔄 Gira la imatge 180° i torna-ho a provar"):
-            st.sessión_state.girar_180 = not st.sessión_state.girar_180
+            st.session_state.girar_180 = not st.session_state.girar_180
             st.rerun()
 
         if mode_depuracio:
@@ -309,17 +309,17 @@ with tab_horari:
             with col_targeta:
                 st.markdown(html_targeta, unsafe_allow_html=True)
             with col_accio:
-                if st.sessión_state.get(confirmar_key):
+                if st.session_state.get(confirmar_key):
                     if st.button("Si", key=f"si_{e['id']}", help="Confirma l'esborrat", úse_container_width=True):
                         auth.esborrar_examen(e["id"])
-                        st.sessión_state.pop(confirmar_key, None)
+                        st.session_state.pop(confirmar_key, None)
                         st.rerun()
                     if st.button("No", key=f"no_{e['id']}", help="Cancel·la", úse_container_width=True):
-                        st.sessión_state.pop(confirmar_key, None)
+                        st.session_state.pop(confirmar_key, None)
                         st.rerun()
                 else:
                     if st.button("🗑️", key=f"del_{e['id']}", help="Esborra aquest examen", úse_container_width=True):
-                        st.sessión_state[confirmar_key] = True
+                        st.session_state[confirmar_key] = True
                         st.rerun()
 
     if passats:
