@@ -1,7 +1,7 @@
 """
 auth.py
 =======
-Aquest fitxer gestiona TOT el que té a veure amb usuaris i dades.
+Gestió d'usuaris, login, perfil i admin.
 """
 
 import base64
@@ -14,7 +14,6 @@ from datetime import date, datetime
 
 import streamlit as st
 
-# CONSTANTS
 RUTA_USUARIS = "dades/usuaris.json"
 RUTA_EXAMENS = "dades/exàmens.json"
 
