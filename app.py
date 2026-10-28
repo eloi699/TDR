@@ -74,7 +74,7 @@ def obtenir_model():
  
 # Determinar si l'usuari es admin
 ADMINS = ["eloi", "eloii"]
-es_admin = st.session_state.usuari.get("username") in ADMINS
+es_admin = st.sessio_state.usuari.get("username") in ADMINS
 
 if es_admin:
     tab_tutor, tab_horari, tab_ia, tab_perfil, tab_admin = st.tabs([
