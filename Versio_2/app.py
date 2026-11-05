@@ -471,12 +471,6 @@ if not st.session_state.entrat:
             st.session_state.entrat = True
             st.rerun()
 
-    st.markdown("""
-    <div class="portada-footer">
-        Fet amb ❤️ · Streamlit + TensorFlow
-    </div>
-    """, unsafe_allow_html=True)
-
     st.stop()
 
 
