@@ -179,19 +179,19 @@ def mostrar_login():
         for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
             fotos.extend(sorted(glob.glob(os.path.join("assets", ext))))
     fotos = [f for f in fotos if not os.path.basename(f).startswith(".")]
-        if fotos:
-        fotos_dobles = fotos + fotos
-        imgs_html = ""
-        for f in fotos_dobles:
-            try:
-                with open(f, "rb") as img_file:
-                    b64 = base64.b64encode(img_file.read()).decode()
-                    ext = f.rsplit(".", 1)[-1].lower()
-                    if ext == "jpg":
-                        ext = "jpeg"
-                    imgs_html += f'<img src="data:image/{ext};base64,{b64}" class="car-img">'
-            except Exception:
-                continue
+if fotos:
+    fotos_dobles = fotos + fotos
+    imgs_html = ""
+    for f in fotos_dobles:
+        try:
+            with open(f, "rb") as img_file:
+                b64 = base64.b64encode(img_file.read()).decode()
+                ext = f.rsplit(".", 1)[-1].lower()
+                if ext == "jpg":
+                    ext = "jpeg"
+                imgs_html += f'<img src="data:image/{ext};base64,{b64}" class="car-img">'
+        except Exception:
+            continue
 
         st.markdown(f"""
         <style>
