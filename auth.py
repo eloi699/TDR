@@ -1,7 +1,7 @@
 """
 auth.py
 =======
-Aquest fitxer gestiona TOT el que té a veure amb usuaris i dades.
+Aquest fitxer gestiona TOT el que te a veure amb usuaris i dades.
 """
 
 import base64
@@ -16,7 +16,7 @@ import streamlit as st
 
 # CONSTANTS
 RUTA_USUARIS = "dades/usuaris.json"
-RUTA_EXAMENS = "dades/exàmens.json"
+RUTA_EXAMENS = "dades/examens.json"
 
 CLASSES = [
     "1r ESO", "2n ESO", "3r ESO", "4t ESO",
@@ -42,7 +42,7 @@ def _escriure_json(ruta, dades):
         json.dump(dades, f, ensure_ascii=False, indent=2)
 
 def _hash_contrasenya(usuari, contrasenya):
-    text = f"tdr_tutor_matemàtic::{usuari.lower()}::{contrasenya}"
+    text = f"tdr_tutor_matematic::{usuari.lower()}::{contrasenya}"
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 def carregar_usuaris():
@@ -56,9 +56,9 @@ def registrar_usuari(usuari, contrasenya, classe):
     if not usuari or not contrasenya or not classe:
         return False, "Cal omplir tots els camps."
     if len(usuari) < 3:
-        return False, "El nom d'usuari ha de tenir almenys 3 caràcters."
+        return False, "El nom d'usuari ha de tenir almenys 3 caracters."
     if len(contrasenya) < 4:
-        return False, "La contrasenya ha de tenir almenys 4 caràcters."
+        return False, "La contrasenya ha de tenir almenys 4 caracters."
     usuaris = carregar_usuaris()
     if usuari in usuaris:
         return False, "Aquest usuari ja existeix."
@@ -68,7 +68,7 @@ def registrar_usuari(usuari, contrasenya, classe):
         "creat": datetime.now().isoformat(),
     }
     desar_usuaris(usuaris)
-    return True, "Compte creat! Ara pots iniciar sessió."
+    return True, "Compte creat! Ara pots iniciar sessio."
 
 def autenticar_usuari(usuari, contrasenya):
     usuari = usuari.strip().lower()
@@ -82,9 +82,9 @@ def autenticar_usuari(usuari, contrasenya):
 def canviar_contrasenya(usuari, contrasenya_vella, contrasenya_nova):
     ok, _ = autenticar_usuari(usuari, contrasenya_vella)
     if not ok:
-        return False, "La contrasenya actual no és correcta."
+        return False, "La contrasenya actual no es correcta."
     if len(contrasenya_nova) < 4:
-        return False, "La nova contrasenya ha de tenir almenys 4 caràcters."
+        return False, "La nova contrasenya ha de tenir almenys 4 caracters."
     usuaris = carregar_usuaris()
     usuaris[usuari]["password_hash"] = _hash_contrasenya(usuari, contrasenya_nova)
     desar_usuaris(usuaris)
@@ -283,7 +283,7 @@ def mostrar_login():
     # --- Formulari en columnes centrades ---
     col_esq, col_mig, col_dre = st.columns([1, 1.4, 1])
     with col_mig:
-        tab_login, tab_registre = st.tabs(["Iniciar sessió", "Crear compte"])
+        tab_login, tab_registre = st.tabs(["Iniciar sessio", "Crear compte"])
 
         with tab_login:
             with st.form("form_login"):
@@ -308,7 +308,7 @@ def mostrar_login():
         with tab_registre:
             with st.form("form_registre"):
                 user2 = st.text_input("Nom d'usuari", placeholder="Tria un nom únic")
-                pwd2 = st.text_input("Contrasenya", type="password", placeholder="Mínim 4 caràcters")
+                pwd2 = st.text_input("Contrasenya", type="password", placeholder="Minim 4 caracters")
                 classe = st.selectbox("Classe", CLASSES, index=None, placeholder="Selecciona la teva classe")
                 st.write("")
                 enviat2 = st.form_submit_button("Crear compte", type="primary", use_container_width=True)
@@ -364,7 +364,7 @@ def mostrar_perfil():
                         st.error(msg)
 
         st.markdown("---")
-        if st.button("Tancar sessió", use_container_width=True):
+        if st.button("Tancar sessio", use_container_width=True):
             esborrar_sessio_url()
             st.session_state.usuari = None
             st.rerun()
@@ -374,10 +374,10 @@ def mostrar_admin():
     username = usuari["username"]
 
     if not es_admin(username):
-        st.error("No tens permís per accedir a aquesta secció.")
+        st.error("No tens permis per accedir a aquesta seccio.")
         return
 
-    tab_usuaris, tab_examens = st.tabs(["Usuaris", "Exàmens"])
+    tab_usuaris, tab_examens = st.tabs(["Usuaris", "Examens"])
 
     with tab_usuaris:
         usuaris = carregar_usuaris()
@@ -414,7 +414,7 @@ def mostrar_admin():
         with st.form("admin_afegir_examen", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                assig = st.text_input("Assignatura *", placeholder="Matemàtiques")
+                assig = st.text_input("Assignatura *", placeholder="Matematiques")
             with col2:
                 classe = st.selectbox("Classe *", CLASSES, key="admin_classe_nova")
             col3, col4 = st.columns(2)
@@ -425,7 +425,7 @@ def mostrar_admin():
             desc = st.text_input("Detalls", placeholder="Temes 3 i 4", key="admin_desc_nova")
             if st.form_submit_button("Afegir examen", type="primary", use_container_width=True):
                 if not assig.strip():
-                    st.error("Cal omplir com a mínim l'assignatura.")
+                    st.error("Cal omplir com a minim l'assignatura.")
                 else:
                     afegir_examen(assig, classe, data_ex, hora, desc)
                     st.success("Examen afegit!")
