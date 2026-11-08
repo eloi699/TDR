@@ -174,24 +174,29 @@ def restaurar_sessio_url():
     return False
 
 def mostrar_login():
+    """Mostra la pantalla inicial on l'usuari inicia sessio o es registra."""
+    # Carregar les fotos de la carpeta assets/
     fotos = []
     if os.path.isdir("assets"):
         for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
             fotos.extend(sorted(glob.glob(os.path.join("assets", ext))))
+            
     fotos = [f for f in fotos if not os.path.basename(f).startswith(".")]
-if fotos:
-    fotos_dobles = fotos + fotos
-    imgs_html = ""
-    for f in fotos_dobles:
-        try:
-            with open(f, "rb") as img_file:
-                b64 = base64.b64encode(img_file.read()).decode()
-                ext = f.rsplit(".", 1)[-1].lower()
-                if ext == "jpg":
-                    ext = "jpeg"
-                imgs_html += f'<img src="data:image/{ext};base64,{b64}" class="car-img">'
-        except Exception:
-            continue
+
+    # Si tenim fotos, fem un carrusel horitzontal automatic
+    if fotos:
+        fotos_dobles = fotos + fotos
+        imgs_html = ""
+        for f in fotos_dobles:
+            try:
+                with open(f, "rb") as img_file:
+                    b64 = base64.b64encode(img_file.read()).decode()
+                    ext = f.rsplit(".", 1)[-1].lower()
+                    if ext == "jpg":
+                        ext = "jpeg"
+                    imgs_html += f'<img src="data:image/{ext};base64,{b64}" class="car-img">'
+            except Exception:
+                continue
 
         st.markdown(f"""
         <style>
@@ -238,27 +243,48 @@ if fotos:
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-    if fotos:
-        fotos_dobles = fotos + fotos
-        imgs_html = ""
-        for f in fotos_dobles:
-            try:
-                with open(f, "rb") as img_file:
-                    b64 = base64.b64encode(img_file.read()).decode()
-                    ext = f.rsplit(".", 1)[-1].lower()
-                    if ext == "jpg":
-                        ext = "jpeg"
-                    imgs_html += f'<img src="data:image/{ext};base64,{b64}" class="car-img">'
-            except Exception:
-                continue
-
+    
+    # --- Capcalera ---
     st.markdown("""
     <div style="text-align:center; padding:10px 20px 25px;">
         <h1 class="login-titol">Tutor <span>Matematic IA</span></h1>
+        <p style="color:#94a3b8; font-size:15px; max-width:400px; margin:8px auto 0; line-height:1.6; text-align:center;">
+            Institut Guissona · Curs 2025-2026<br>
+            Inicia sessio o crea un compte per accedir a l'aplicacio.
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
+    # --- Estils dels tabs i formularis ---
+    st.markdown("""
+    <style>
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 6px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 24px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            flex: 1;
+            justify-content: center;
+            padding: 10px 20px;
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, #2b8cee 0%, #1e6fbf 100%) !important;
+            color: #ffffff !important;
+        }
+        .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+        .stTabs [data-baseweb="tab-border"] { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- Formulari en columnes centrades ---
     col_esq, col_mig, col_dre = st.columns([1, 1.4, 1])
     with col_mig:
         tab_login, tab_registre = st.tabs(["Iniciar sessió", "Crear compte"])
@@ -296,7 +322,6 @@ if fotos:
                         st.success(msg)
                     else:
                         st.error(msg)
-
 def requerir_login():
     if st.session_state.get("usuari"):
         return
