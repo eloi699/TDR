@@ -179,6 +179,65 @@ def mostrar_login():
         for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
             fotos.extend(sorted(glob.glob(os.path.join("assets", ext))))
     fotos = [f for f in fotos if not os.path.basename(f).startswith(".")]
+        if fotos:
+        fotos_dobles = fotos + fotos
+        imgs_html = ""
+        for f in fotos_dobles:
+            try:
+                with open(f, "rb") as img_file:
+                    b64 = base64.b64encode(img_file.read()).decode()
+                    ext = f.rsplit(".", 1)[-1].lower()
+                    if ext == "jpg":
+                        ext = "jpeg"
+                    imgs_html += f'<img src="data:image/{ext};base64,{b64}" class="car-img">'
+            except Exception:
+                continue
+
+        st.markdown(f"""
+        <style>
+            .carrusel-wrap {{
+                width: 100%;
+                overflow: hidden;
+                border-radius: 18px;
+                margin-bottom: 30px;
+                background: #0c141b;
+                border: 1px solid rgba(43, 140, 238, 0.2);
+                box-shadow: 0 12px 32px -12px rgba(43, 140, 238, 0.3);
+            }}
+            .carrusel-track {{
+                display: flex;
+                gap: 12px;
+                padding: 12px;
+                animation: scroll-horitzontal 40s linear infinite;
+                width: max-content;
+            }}
+            .carrusel-track:hover {{
+                animation-play-state: paused;
+            }}
+            .car-img {{
+                height: 160px;
+                border-radius: 12px;
+                object-fit: cover;
+                flex-shrink: 0;
+                transition: transform 0.3s ease;
+            }}
+            .car-img:hover {{
+                transform: scale(1.05);
+            }}
+            @keyframes scroll-horitzontal {{
+                from {{ transform: translateX(0); }}
+                to   {{ transform: translateX(-50%); }}
+            }}
+            @media (max-width: 700px) {{
+                .car-img {{ height: 110px; }}
+            }}
+        </style>
+        <div class="carrusel-wrap">
+            <div class="carrusel-track">
+                {imgs_html}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     if fotos:
         fotos_dobles = fotos + fotos
