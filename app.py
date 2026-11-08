@@ -14,20 +14,20 @@ Estructura:
 Per executar-ho: streamlit run app.py
 """
 
-# --- Imports estàndard de Python ---
+# Imports estàndard de Python 
 import json
 import os
 import uuid
 from datetime import date, datetime
 
-# --- Llibreries externes ---
+# Llibreries externes 
 import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image, ImageOps, ImageFilter, ImageEnhance
 from streamlit_cropper import st_cropper
 
-# --- Mòduls propis del projecte ---
+#Mòduls propis del projecte 
 import auth     # Gestiona usuaris, login i examens
 import estils   # Conté tot el CSS personalitzat
 from motor import carregar_model, analitzar_imatge  # IA: llegir operacións
