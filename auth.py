@@ -248,10 +248,6 @@ def mostrar_login():
     st.markdown("""
     <div style="text-align:center; padding:10px 20px 25px;">
         <h1 class="login-titol">Tutor <span>Matematic IA</span></h1>
-        <p style="color:#94a3b8; font-size:15px; max-width:400px; margin:8px auto 0; line-height:1.6; text-align:center;">
-            Institut Guissona · Curs 2025-2026<br>
-            Inicia sessio o crea un compte per accedir a l'aplicacio.
-        </p>
     </div>
     """, unsafe_allow_html=True)
 
